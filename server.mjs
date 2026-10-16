@@ -137,6 +137,9 @@ function publicWorkspace(account) {
       result.employees.forEach((employee) => { delete employee.hourlyRate; delete employee.dailyRate; delete employee.monthlySalary; delete employee.payBasis; });
       result.payroll = [];
     }
+    if (account.role === 'manager') {
+      result.managerPayrollPreviews = managerPayrollPreviews();
+    }
     return result;
   }
   const employeeId = account.employeeId;
@@ -243,6 +246,59 @@ function payrollFor(targetMonth) {
   }, 0);
   const sourceSummary = { defectsFound, correctiveHours: inputRecords.reduce((sum, entry) => sum + Number(entry.hours), 0), eligibleHours: eligibleInputs.reduce((sum, entry) => sum + Number(entry.hours), 0), excludedExternalHours: excludedExternalInputs.reduce((sum, entry) => sum + Number(entry.hours), 0), excludedExternalEstimate: excludedExternalEstimatePaise / 100, payrollAdjustment: rows.reduce((sum, row) => sum + row.deduction, 0) };
   return { month: targetMonth, sourceMonth, calculationVersion: 'paise-v1', inputRecords, sourceSummary, rows, totalGross: rows.reduce((sum, row) => sum + row.gross, 0), totalDeduction: sourceSummary.payrollAdjustment, totalNet: rows.reduce((sum, row) => sum + row.net, 0) };
+}
+function shiftMonthKey(key, offset) {
+  const [year, monthNumber] = key.split('-').map(Number);
+  return new Date(Date.UTC(year, monthNumber - 1 + offset, 1)).toISOString().slice(0, 7);
+}
+function managerPayrollPreviews() {
+  const currentDate = new Date();
+  const currentMonth = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+  const targetMonths = [-1, 0, 1, 2].map((offset) => shiftMonthKey(currentMonth, offset));
+  return targetMonths.map((targetMonth) => {
+    const report = db.payroll.find((item) => item.month === targetMonth) || payrollFor(targetMonth);
+    return {
+      month: report.month,
+      sourceMonth: report.sourceMonth,
+      finalized: Boolean(report.finalizedAt),
+      totalDeduction: report.totalDeduction,
+      sourceSummary: {
+        correctiveHours: report.sourceSummary?.correctiveHours || 0,
+        eligibleHours: report.sourceSummary?.eligibleHours || 0,
+        excludedExternalHours: report.sourceSummary?.excludedExternalHours || 0,
+        excludedExternalEstimate: report.sourceSummary?.excludedExternalEstimate || 0,
+      },
+      inputRecords: (report.inputRecords || []).map((entry) => ({
+        timeId: entry.timeId,
+        date: entry.date,
+        employeeId: entry.employeeId,
+        employee: entry.employee,
+        taskId: entry.taskId,
+        module: entry.module,
+        bugId: entry.bugId,
+        hours: entry.hours,
+        status: entry.status,
+        cause: entry.cause,
+        estimatedAmount: entry.estimatedAmount,
+      })),
+      rows: (report.rows || []).map((row) => ({
+        employeeId: row.employeeId,
+        employee: row.employee,
+        hours: row.hours,
+        requestedDeduction: row.requestedDeduction,
+        capApplied: row.capApplied,
+        deduction: row.deduction,
+        lines: (row.lines || []).map((line) => ({
+          taskId: line.taskId,
+          bugId: line.bugId,
+          module: line.module,
+          hours: line.hours,
+          amount: line.amount,
+          appliedAmount: line.appliedAmount,
+        })),
+      })),
+    };
+  });
 }
 function payrollBlockers(report) {
   const entries = db.timeEntries.filter((entry) => entry.type === 'corrective' && entry.date.startsWith(report.sourceMonth));

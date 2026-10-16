@@ -31,6 +31,8 @@ The Node server saves the workspace to `data/workspace.json` after each accepted
 
 The calculation is `min(gross monthly salary, approved eligible hours × hourly equivalent)`. A daily rate uses the employee's configured workday. The server rounds each time entry to paise, caps deductions at gross pay, and stores the source records, rate basis, and calculation version with finalized payroll. The UI shows paise when a value has a fractional rupee. The audit history records the actor, decision, time, and reason.
 
+Quality analysis is explainable: the workspace calculates reopen rates, average fix time, and corrective hours, then checks defect descriptions for repeated terms using a lightweight Jaccard similarity score. It surfaces candidate records for human review; it never decides fault, approves hours, or changes payroll. Manager deduction previews are calculated on the server and expose only the itemized rework amount needed for review, without salary rates or gross pay.
+
 ## Reset demo data
 
 Stop the server, remove `data/workspace.json`, and start it again. The server will recreate the fictional sample workspace. The database file is ignored by Git.

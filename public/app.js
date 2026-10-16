@@ -286,6 +286,10 @@ function workflowAnimation() {
 }
 
 function computePayroll(target = payrollTarget()) {
+  if (role === 'manager') {
+    const preview = state.managerPayrollPreviews?.find((item) => item.month === target);
+    if (preview) return preview;
+  }
   const saved = state.payroll.find((item) => item.month === target);
   if (saved) return { ...saved, finalized: true };
   const source = shiftMonth(target, -1);
@@ -451,11 +455,11 @@ function deductionReviewPage() {
   const payroll = computePayroll();
   const source = payroll.sourceMonth;
   const approved = state.timeEntries.filter((entry) => entry.type === 'corrective' && entry.status === 'approved' && entry.date.startsWith(source));
-  const pendingCause = state.bugs.filter((bug) => bug.cause === 'pending').length;
+  const sourceBugIds = new Set(state.timeEntries.filter((entry) => entry.type === 'corrective' && entry.date.startsWith(source)).map((entry) => entry.bugId));
+  const pendingCause = state.bugs.filter((bug) => bug.cause === 'pending' && (sourceBugIds.has(bug.id) || bug.foundAt?.startsWith(source))).length;
   const externalEntries = approved.filter((entry) => bugById(entry.bugId)?.cause === 'external');
-  const externalEstimate = payroll.finalized
-    ? (payroll.inputRecords || []).filter((entry) => entry.status === 'approved' && entry.cause === 'external').reduce((sum, entry) => sum + Number(entry.estimatedAmount || 0), 0)
-    : externalEntries.reduce((sum, entry) => sum + correctiveAmountPaise(entry, employeeById(entry.employeeId)), 0) / 100;
+  const externalEstimate = (payroll.inputRecords || []).filter((entry) => entry.status === 'approved' && entry.cause === 'external').reduce((sum, entry) => sum + Number(entry.estimatedAmount || 0), 0);
+  const payrollLines = payroll.rows.flatMap((row) => row.lines || []);
   const picker = `<select class="filter-select" id="payrollMonth" aria-label="Payroll month">${[shiftMonth(monthKey(), -1), monthKey(), shiftMonth(monthKey(), 1), shiftMonth(monthKey(), 2)].map((item) => `<option value="${item}" ${item === payroll.month ? 'selected' : ''}>${esc(monthLabel(item))}</option>`).join('')}</select>`;
   const rows = state.bugs.map((bug) => {
     const task = taskById(bug.taskId); const owner = employeeById(task?.ownerId);
@@ -463,11 +467,9 @@ function deductionReviewPage() {
     const approvedEntries = entries.filter((entry) => entry.status === 'approved');
     const eligible = bug.cause === 'original' ? approvedEntries : [];
     const hours = eligible.reduce((sum, entry) => sum + Number(entry.hours), 0);
-    const estimate = payroll.finalized
-      ? payroll.rows.flatMap((row) => row.lines || []).filter((line) => line.bugId === bug.id).reduce((sum, line) => sum + Number(line.amount || 0), 0)
-      : eligible.reduce((sum, entry) => sum + correctiveAmountPaise(entry, employeeById(entry.employeeId)), 0) / 100;
+    const estimate = payrollLines.filter((line) => line.bugId === bug.id).reduce((sum, line) => sum + Number(line.appliedAmount ?? line.amount ?? 0), 0);
     return { bug, task, owner, entries, approvedEntries, hours, estimate };
-  }).filter((item) => item.entries.length || item.bug.cause === 'pending');
+  }).filter((item) => item.entries.length || (item.bug.cause === 'pending' && item.bug.foundAt?.startsWith(source)));
   const allApprovedHours = approved.reduce((sum, entry) => sum + Number(entry.hours), 0);
   return `${pageHead('MANAGER REVIEW · EVIDENCE FIRST', 'Deduction review', `Review ${monthLabel(source)} corrective work before ${monthLabel(payroll.month)} payroll. Cause review is separate from the team lead’s hour approval.`, picker)}
     <div class="metric-strip"><div class="mini-metric"><span>Approved corrective hours</span><strong>${allApprovedHours.toFixed(2)}h</strong><small>${esc(monthLabel(source))} source work</small></div><div class="mini-metric"><span>Original-delivery estimate</span><strong>${money(payroll.totalDeduction)}</strong><small>rate-based preview · finance finalizes</small></div><div class="mini-metric"><span>External change excluded</span><strong>${money(externalEstimate)}</strong><small>${externalEntries.reduce((sum, entry) => sum + Number(entry.hours), 0).toFixed(2)}h · not deducted</small></div><div class="mini-metric"><span>Cause reviews pending</span><strong>${pendingCause}</strong><small>must be documented before payroll</small></div></div>
