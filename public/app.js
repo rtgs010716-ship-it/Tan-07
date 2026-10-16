@@ -28,7 +28,10 @@ const validRoles = ['employee', 'team-lead', 'manager', 'finance', 'admin'];
 let role = validRoles.includes(localStorage.getItem('rl-role')) ? localStorage.getItem('rl-role') : 'team-lead';
 let loginStage = 'choose';
 let employeeId = localStorage.getItem('rl-employee') || 'emp-aisha';
-let signedIn = sessionStorage.getItem('rl-signed-in') === 'true';
+let signedIn = false;
+let authAccount = null;
+let setupRequired = false;
+let accountList = [];
 let modal = '';
 let taskSearch = '';
 let selectedTaskStatus = 'all';
@@ -55,12 +58,13 @@ const nav = [
   { id: 'payroll', label: 'Payroll', icon: 'payroll', group: 'PAYROLL', roles: ['employee', 'finance', 'admin'] },
   { id: 'insights', label: 'Quality signals', icon: 'chart', roles: ['team-lead', 'manager', 'finance', 'admin'] },
   { id: 'audit', label: 'Audit trail', icon: 'audit', roles: ['team-lead', 'manager', 'finance', 'admin'] },
+  { id: 'accounts', label: 'Accounts', icon: 'people', group: 'ADMINISTRATION', roles: ['admin'] },
 ];
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const esc = (value = '') => String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 const currentEmployee = () => state?.employees.find((item) => item.id === employeeId) || state?.employees[0];
-const actorName = () => role === 'employee' ? currentEmployee()?.name || 'Employee' : role === 'team-lead' ? 'Leena Das' : role === 'manager' ? 'Maya Rao' : role === 'finance' ? 'Nora Iyer' : 'Workspace admin';
+const actorName = () => role === 'employee' ? currentEmployee()?.name || authAccount?.name || 'Employee' : authAccount?.name || roleNames[role] || 'Workspace user';
 const initials = (name = '') => name.split(/\s+/).map((part) => part[0] || '').slice(0, 2).join('').toUpperCase();
 const money = (amount) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Number(amount || 0));
 const moneyRate = (amount) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(amount || 0));
@@ -93,7 +97,31 @@ async function refreshState(quiet = false) {
   if (!quiet && !modal) render();
 }
 
+async function refreshAccounts() {
+  if (role !== 'admin') { accountList = []; return; }
+  const response = await fetch('/api/accounts', { cache: 'no-store' });
+  if (!response.ok) throw new Error('Could not load portal accounts.');
+  accountList = (await response.json()).accounts;
+}
+
+async function acceptLogin(account) {
+  authAccount = account;
+  role = account.role;
+  employeeId = account.employeeId || '';
+  localStorage.setItem('rl-role', role);
+  if (employeeId) localStorage.setItem('rl-employee', employeeId);
+  signedIn = true;
+  loginStage = 'choose';
+  view = 'overview';
+  modal = '';
+  await refreshState(false);
+  if (role === 'admin') await refreshAccounts();
+  connectLive();
+  render();
+}
+
 function connectLive() {
+  eventSource?.close();
   eventSource = new EventSource('/api/events');
   eventSource.addEventListener('update', async () => {
     try { await refreshState(Boolean(modal)); if (modal) { /* Keep an in-progress form intact; the next action uses current server state. */ } }
@@ -113,7 +141,7 @@ function setSync(online) {
 async function send(action, data) {
   if (pending) return null;
   pending = true;
-  const payload = { action, data, role, actorId: role === 'employee' ? employeeId : null };
+  const payload = { action, data };
   try {
     const response = await fetch('/api/command', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
     const result = await response.json();
@@ -124,7 +152,7 @@ async function send(action, data) {
 }
 
 function roleSwitcher() {
-  return `<button class="button small ghost role-switch" data-action="switch-role">Switch role</button>`;
+  return `<button class="button small ghost role-switch" data-action="switch-role">Sign out</button>`;
 }
 
 function roleChooser() {
@@ -136,19 +164,18 @@ function roleChooser() {
     { id: 'admin', icon: 'shield', title: 'Administrator', detail: 'Oversee workspace activity, reports, and the full audit trail.' },
   ];
   const brand = `<div class="login-brand"><span class="brand-mark">${buttonIcon('mark')}</span><span><strong>REWORK LEDGER</strong><small>QUALITY OPERATIONS</small></span></div>`;
+  if (loginStage === 'setup') return `<main class="login-shell"><section class="portal-auth-card setup-auth-card"><div class="portal-story">${brand}<div class="portal-story-topline">FIRST RUN · ACCOUNT SETUP</div><div class="portal-story-copy"><div class="login-eyebrow">ONE-TIME WORKSPACE SETUP</div><h1>Create the first administrator.</h1><p>This account manages portal access. Create employee, team lead, manager, and finance logins from the Accounts page after signing in.</p></div><div class="login-live-note"><span class="live-dot"></span><span>Account records are saved in the local database</span></div></div><div class="portal-form"><div class="eyebrow">INITIAL ADMINISTRATOR</div><h2 id="loginTitle">Set up Rework Ledger</h2><p class="login-subtitle">Use a work email and a password with at least 10 characters.</p><form data-form="setup-admin" class="auth-form"><label class="field"><span>Administrator name</span><input name="name" autocomplete="name" required maxlength="80" placeholder="Your name" /></label><label class="field"><span>Work email</span><input name="email" type="email" autocomplete="email" required maxlength="254" placeholder="name@company.com" /></label><label class="field"><span>Password</span><input name="password" type="password" autocomplete="new-password" required minlength="10" maxlength="1024" placeholder="At least 10 characters" /></label><label class="field"><span>Confirm password</span><input name="confirmPassword" type="password" autocomplete="new-password" required minlength="10" maxlength="1024" placeholder="Re-enter password" /></label><div class="form-error" role="alert"></div><button type="submit" class="button primary login-submit">Create administrator ${buttonIcon('arrow')}</button></form><button type="button" class="button text portal-back" data-action="choose-portals">${buttonIcon('arrow')} Back to role portals</button></div></section><footer class="login-footer">MERIDIAN QUALITY WORKSPACE <span>·</span> Persistent account setup</footer></main>`;
   if (loginStage === 'portal') {
     const profile = portalProfiles[role];
-    const iconName = role === 'employee' ? 'people' : role === 'finance' ? 'payroll' : role === 'admin' || role === 'manager' ? 'shield' : 'tasks';
     return `<main class="login-shell"><section class="portal-auth-card" aria-labelledby="loginTitle">
       <div class="portal-story">${brand}<div class="portal-story-topline">REWORK · REVIEW · PAYROLL</div><div class="portal-motion" aria-label="Animated delivery lifecycle"><span class="motion-track"></span>${['ASSIGNED','IN PROGRESS','COMPLETED','REOPENED','UNDER FIX','CLOSED'].map((step, index) => `<span class="motion-step motion-step-${index + 1}"><i></i>${step}</span>`).join('')}</div>
         <div class="portal-story-copy"><div class="login-eyebrow">${esc(roleNames[role].toUpperCase())} PORTAL</div><h1>${esc(roleNames[role])} portal</h1><p>${esc(profile.intro)}</p>
           <div class="portal-info-grid"><div><span>WHAT YOU SEE</span><ul>${profile.see.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div><div><span>WHAT YOU CAN DO</span><ul>${profile.do.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div></div>
         </div><div class="login-live-note"><span class="live-dot"></span><span>Persistent local database · live updates</span></div>
       </div>
-      <div class="portal-form"><div class="eyebrow">DEMO WORKSPACE · ${esc(roleNames[role].toUpperCase())}</div><span class="login-profile-badge portal-badge">${esc(roleNames[role])}</span><h2 id="loginTitle">Sign in as ${esc(roleNames[role])}</h2><p class="login-subtitle">Open the pages and records connected to this role.</p>
-        ${role === 'employee' ? `<label class="login-employee-field" for="loginEmployee">Employee profile<select id="loginEmployee">${state.employees.filter((employee) => employee.active).map((employee) => `<option value="${esc(employee.id)}" ${employee.id === employeeId ? 'selected' : ''}>${esc(employee.name)} · ${esc(employee.title)}</option>`).join('')}</select></label>` : `<div class="login-profile portal-profile"><span class="login-profile-icon">${buttonIcon(iconName)}</span><span><small>DEMO PROFILE</small><strong>${esc(actorName())}</strong></span><span class="login-profile-badge">${esc(roleNames[role])}</span></div>`}
-        <button type="button" class="button primary login-submit" data-action="enter-workspace">Open ${esc(roleNames[role])} workspace ${buttonIcon('arrow')}</button>
-        <div class="demo-disclosure"><span>${buttonIcon('shield')}</span><p>Demo portal: no password is collected or verified. Use fictional sample profiles; production sign-in requires your organization’s identity provider.</p></div>
+      <div class="portal-form"><div class="eyebrow">WORKSPACE SIGN-IN · ${esc(roleNames[role].toUpperCase())}</div><span class="login-profile-badge portal-badge">${esc(roleNames[role])}</span><h2 id="loginTitle">Sign in as ${esc(roleNames[role])}</h2><p class="login-subtitle">Open the pages and records connected to this role.</p>
+        <form data-form="login" class="auth-form"><label class="field"><span>Work email</span><input name="email" type="email" autocomplete="username" required maxlength="254" placeholder="name@company.com" /></label><label class="field"><span>Password</span><input name="password" type="password" autocomplete="current-password" required maxlength="1024" placeholder="Your password" /></label><div class="form-error" role="alert"></div><button type="submit" class="button primary login-submit">Sign in to ${esc(roleNames[role])} ${buttonIcon('arrow')}</button></form>
+        <div class="demo-disclosure"><span>${buttonIcon('shield')}</span><p>This login only opens the ${esc(roleNames[role])} portal. Ask your workspace administrator to create an account if you do not have one.</p></div>
         <button type="button" class="button text portal-back" data-action="choose-portals">${buttonIcon('arrow')} Choose another portal</button>
       </div>
     </section><footer class="login-footer">MERIDIAN QUALITY WORKSPACE <span>·</span> Changes save to the local database as they happen</footer></main>`;
@@ -158,9 +185,9 @@ function roleChooser() {
       <div class="login-story-copy"><div class="login-eyebrow">One record · every decision</div><h1>Keep the full story<br/>attached to the work.</h1><p>Follow delivery, defect, fix, and payroll review in a live, traceable workspace.</p></div>
       <div class="login-live-note"><span class="live-dot"></span><span>Local database · connected updates</span></div>
     </div>
-    <div class="login-form"><div class="eyebrow">DEMO WORKSPACE · ROLE PORTALS</div><h2 id="loginTitle">Choose your portal</h2><p class="login-subtitle">Each role opens a home page with its own tasks, reports, and actions.</p>
+    <div class="login-form"><div class="eyebrow">SECURE WORKSPACE · ROLE PORTALS</div><h2 id="loginTitle">Choose your portal</h2><p class="login-subtitle">Sign in with an account assigned to the portal you need.</p>
       <div class="role-grid" role="group" aria-label="Choose a workspace role">${roles.map((item) => `<button type="button" class="role-card" data-action="open-portal" data-role="${item.id}"><span class="role-card-icon">${buttonIcon(item.icon)}</span><span class="role-card-copy"><strong>${esc(item.title)} portal</strong><small>${esc(item.detail)}</small></span><span class="role-card-check">${buttonIcon('arrow')}</span></button>`).join('')}</div>
-      <div class="demo-disclosure"><span>${buttonIcon('shield')}</span><p>Demo portal selection only. No password is collected or checked; live identity verification is not configured.</p></div>
+      ${setupRequired ? `<button type="button" class="button primary login-submit setup-link" data-action="setup-admin">Set up the first administrator ${buttonIcon('arrow')}</button>` : `<div class="demo-disclosure"><span>${buttonIcon('shield')}</span><p>Need another account? Ask your administrator to add it from the Accounts page.</p></div>`}
     </div>
   </section><footer class="login-footer">MERIDIAN QUALITY WORKSPACE <span>·</span> Changes save to the local database as they happen</footer></main>`;
 }
@@ -190,7 +217,7 @@ function topbar() {
   </header>`;
 }
 
-function viewLabel(id) { return ({ overview: 'Home', tasks: role === 'employee' ? 'My task board' : 'Modules & tasks', defects: role === 'employee' ? 'My defect register' : role === 'manager' ? 'Deduction review' : 'Defect register', time: role === 'employee' ? 'My time log' : 'Time review', payroll: role === 'employee' ? 'My payslip' : 'Payroll', insights: role === 'manager' ? 'Quality metrics' : 'Quality signals', audit: 'Audit trail', notifications: 'Notifications' })[id] || 'Workspace'; }
+function viewLabel(id) { return ({ overview: 'Home', tasks: role === 'employee' ? 'My task board' : 'Modules & tasks', defects: role === 'employee' ? 'My defect register' : role === 'manager' ? 'Deduction review' : 'Defect register', time: role === 'employee' ? 'My time log' : 'Time review', payroll: role === 'employee' ? 'My payslip' : 'Payroll', insights: role === 'manager' ? 'Quality metrics' : 'Quality signals', audit: 'Audit trail', notifications: 'Notifications', accounts: 'Portal accounts' })[id] || 'Workspace'; }
 function pageHead(eyebrow, title, subtitle, actions = '') {
   return `<div class="page-head"><div><div class="eyebrow">${esc(eyebrow)}</div><h1>${esc(title)}</h1><p class="page-subtitle">${esc(subtitle)}</p></div>${actions ? `<div class="head-actions">${actions}</div>` : ''}</div>`;
 }
@@ -231,6 +258,7 @@ function rolePageLinks() {
       ['notifications', 'bell', 'Notifications', 'See payroll and review updates.'],
     ],
     admin: [
+      ['accounts', 'people', 'Portal accounts', 'Create logins for the role portals and link employee profiles.'],
       ['tasks', 'tasks', 'Modules & tasks', 'Open assignments and delivery history.'],
       ['defects', 'bug', 'Defect register', 'Review linked defects and their lifecycle.'],
       ['time', 'clock', 'Time review', 'Inspect regular and corrective time entries.'],
@@ -541,6 +569,15 @@ function notificationsPage() {
   return `${pageHead('IN THE LOOP', 'Notifications', 'Review notices for defects, time approvals, and payroll estimates.')}<div class="panel"><div class="panel-head"><div><h2 class="panel-title">All notices</h2><p class="panel-note">Employee notices are sent as part of the same saved database action.</p></div></div>${items.length ? `<div class="notification-list">${items.map((notice) => `<div class="notification-row ${notice.read ? '' : 'unread'}"><span class="notification-icon">${buttonIcon(notice.type === 'payroll' ? 'payroll' : 'tasks')}</span><div class="notification-copy"><strong>${esc(notice.title)} ${notice.read ? '' : '<span class="status pending">New</span>'}</strong><p>${esc(notice.message)}</p>${!notice.read && role === 'employee' ? `<button class="button text" data-action="read-notice" data-id="${esc(notice.id)}">Mark as read</button>` : ''}</div><span class="notification-time">${timeAgo(notice.at)}</span></div>`).join('')}</div>` : '<div class="empty-state">No notifications yet.</div>'}</div>`;
 }
 
+function accountsPage() {
+  const roleLabels = { employee: 'Employee', 'team-lead': 'Team lead', manager: 'Manager', finance: 'Finance', admin: 'Administrator' };
+  const rows = accountList.map((account) => {
+    const employee = account.employeeId ? employeeById(account.employeeId) : null;
+    return `<tr><td><div class="cell-strong">${esc(account.name)}</div><div class="cell-sub">${esc(account.email)}</div></td><td><span class="status approved">${esc(roleLabels[account.role] || account.role)}</span></td><td>${employee ? esc(employee.name) : '—'}</td><td>${shortDate(account.createdAt, { year: 'numeric' })}</td></tr>`;
+  }).join('');
+  return `${pageHead('ACCESS CONTROL', 'Portal accounts', 'Add a separate sign-in for every employee and review role. Accounts are saved in the workspace database; passwords are stored as salted hashes.')}<div class="account-layout"><section class="panel"><div class="panel-head"><div><h2 class="panel-title">Create an account</h2><p class="panel-note">Choose the portal this person is allowed to open.</p></div><span class="panel-aux">Administrator only</span></div><form data-form="create-account" class="account-form"><div class="form-grid"><div class="field"><label for="accountName">Full name</label><input id="accountName" name="name" autocomplete="name" required maxlength="80" placeholder="Person's name" /></div><div class="field"><label for="accountEmail">Work email</label><input id="accountEmail" name="email" type="email" autocomplete="email" required maxlength="254" placeholder="name@company.com" /></div><div class="field"><label for="accountRole">Portal role</label><select id="accountRole" name="role" required><option value="employee">Employee</option><option value="team-lead">Team lead</option><option value="manager">Manager</option><option value="finance">Finance</option><option value="admin">Administrator</option></select></div><div class="field"><label for="accountEmployee">Employee profile</label><select id="accountEmployee" name="employeeId"><option value="">Not linked</option>${state.employees.filter((employee) => employee.active).map((employee) => `<option value="${esc(employee.id)}">${esc(employee.name)} · ${esc(employee.title)}</option>`).join('')}</select><span class="field-help">Required only when the role is Employee.</span></div><div class="field full"><label for="accountPassword">Initial password</label><input id="accountPassword" name="password" type="password" autocomplete="new-password" required minlength="10" maxlength="1024" placeholder="At least 10 characters" /><span class="field-help">Share this initial password securely. The person can use it on their role's login page.</span></div></div><div class="form-error" role="alert"></div><div class="account-form-actions"><button type="submit" class="button primary">Create portal account ${buttonIcon('arrow')}</button></div></form></section><section class="panel"><div class="panel-head"><div><h2 class="panel-title">Workspace accounts</h2><p class="panel-note">${accountList.length} active login${accountList.length === 1 ? '' : 's'} · passwords never appear here</p></div><span class="panel-aux">Persistent</span></div>${accountList.length ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>Person</th><th>Role</th><th>Employee link</th><th>Added</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<div class="empty-state">No portal accounts are registered yet.</div>'}</section></div>`;
+}
+
 function content() {
   switch (view) {
     case 'overview': return overview();
@@ -551,20 +588,21 @@ function content() {
     case 'insights': return qualityPage();
     case 'audit': return auditPage();
     case 'notifications': return notificationsPage();
+    case 'accounts': return accountsPage();
     default: return overview();
   }
 }
 
 function render() {
-  if (!state) return;
   if (!signedIn) {
     $('#app').className = 'login-root';
     $('#app').innerHTML = roleChooser();
     return;
   }
+  if (!state) return;
   const activeEmp = role === 'employee' ? currentEmployee() : { name: actorName(), initials: initials(actorName()) };
   $('#app').className = 'app-frame';
-  $('#app').innerHTML = `<aside class="sidebar" id="sidebar"><div class="brand"><span class="brand-mark">${buttonIcon('mark')}</span><span><span class="brand-name">REWORK LEDGER</span><span class="brand-sub">Quality operations</span></span></div><div class="side-label">Workspace</div><nav class="sidebar-nav">${navMarkup()}</nav><div class="side-spacer"></div><div class="side-status"><div class="side-status-top"><span class="live-dot"></span><span>Local database · live</span></div><p>Saved on every action. Connected tabs update together.</p></div><div class="side-user">${avatar(activeEmp, role === 'employee' ? 'aqua' : 'lime')}<div class="side-user-copy"><div class="side-user-name">${esc(activeEmp?.name || actorName())}</div><div class="side-user-role">${esc(roleNames[role])} · demo workspace</div></div></div></aside><main class="main-panel">${topbar()}<div class="content">${content()}</div></main><div class="toast-region" aria-live="polite"></div>${modal}`;
+  $('#app').innerHTML = `<aside class="sidebar" id="sidebar"><div class="brand"><span class="brand-mark">${buttonIcon('mark')}</span><span><span class="brand-name">REWORK LEDGER</span><span class="brand-sub">Quality operations</span></span></div><div class="side-label">Workspace</div><nav class="sidebar-nav">${navMarkup()}</nav><div class="side-spacer"></div><div class="side-status"><div class="side-status-top"><span class="live-dot"></span><span>Local database · live</span></div><p>Saved on every action. Connected tabs update together.</p></div><div class="side-user">${avatar(activeEmp, role === 'employee' ? 'aqua' : 'lime')}<div class="side-user-copy"><div class="side-user-name">${esc(activeEmp?.name || actorName())}</div><div class="side-user-role">${esc(roleNames[role])} · ${esc(authAccount?.email || '')}</div></div></div></aside><main class="main-panel">${topbar()}<div class="content">${content()}</div></main><div class="toast-region" aria-live="polite"></div>${modal}`;
   if (taskSearch && $('#taskSearch')) { const input = $('#taskSearch'); input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
 }
 
@@ -667,11 +705,11 @@ function value(form, name) { const item = new FormData(form).get(name); return i
 document.addEventListener('click', async (event) => {
   const target = event.target.closest('[data-action]'); if (!target) return;
   const action = target.dataset.action;
-  if (action === 'open-portal') { role = target.dataset.role; loginStage = 'portal'; if (role === 'employee' && !state.employees.some((item) => item.id === employeeId && item.active)) employeeId = state.employees.find((item) => item.active)?.id || ''; render(); return; }
+  if (action === 'open-portal') { role = target.dataset.role; loginStage = 'portal'; localStorage.setItem('rl-role', role); render(); return; }
+  if (action === 'setup-admin') { loginStage = 'setup'; render(); return; }
   if (action === 'choose-portals') { loginStage = 'choose'; render(); return; }
-  if (action === 'enter-workspace') { if (role === 'employee') { employeeId = $('#loginEmployee')?.value || employeeId; if (!state.employees.some((item) => item.id === employeeId && item.active)) return; localStorage.setItem('rl-employee', employeeId); } localStorage.setItem('rl-role', role); sessionStorage.setItem('rl-signed-in', 'true'); signedIn = true; loginStage = 'choose'; view = 'overview'; modal = ''; render(); return; }
-  if (action === 'switch-role') { sessionStorage.removeItem('rl-signed-in'); signedIn = false; loginStage = 'choose'; modal = ''; view = 'overview'; render(); return; }
-  if (action === 'navigate') { view = target.dataset.view; modal = ''; if (!visibleNav().some((item) => item.id === view)) view = 'overview'; render(); if (innerWidth <= 820) $('#sidebar')?.classList.remove('open'); return; }
+  if (action === 'switch-role') { eventSource?.close(); await fetch('/api/auth/logout', { method: 'POST' }); authAccount = null; signedIn = false; state = null; accountList = []; loginStage = 'choose'; modal = ''; view = 'overview'; const status = await fetch('/api/auth/status'); setupRequired = (await status.json()).setupRequired; render(); return; }
+  if (action === 'navigate') { view = target.dataset.view; modal = ''; if (!visibleNav().some((item) => item.id === view)) view = 'overview'; if (view === 'accounts') await refreshAccounts(); render(); if (innerWidth <= 820) $('#sidebar')?.classList.remove('open'); return; }
   if (action === 'sidebar-toggle') { $('#sidebar')?.classList.toggle('open'); return; }
   if (action === 'new-task') { if (['team-lead','admin'].includes(role)) showTaskForm(); return; }
   if (action === 'report-defect') { showBugForm(target.dataset.taskId || ''); return; }
@@ -694,6 +732,41 @@ document.addEventListener('submit', async (event) => {
   const form = event.target.closest('[data-form]'); if (!form) return;
   event.preventDefault();
   const kind = form.dataset.form;
+  if (kind === 'login') {
+    const errorBox = $('.form-error', form);
+    try {
+      const response = await fetch('/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ role, email: value(form, 'email'), password: value(form, 'password') }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Sign-in failed.');
+      await acceptLogin(result.account);
+    } catch (error) { if (errorBox) errorBox.textContent = error.message; }
+    return;
+  }
+  if (kind === 'setup-admin') {
+    const errorBox = $('.form-error', form);
+    if (value(form, 'password') !== value(form, 'confirmPassword')) { if (errorBox) errorBox.textContent = 'The passwords do not match.'; return; }
+    try {
+      const response = await fetch('/api/auth/create-account', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ role: 'admin', name: value(form, 'name'), email: value(form, 'email'), password: value(form, 'password') }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Administrator setup failed.');
+      setupRequired = false;
+      await acceptLogin(result.account);
+    } catch (error) { if (errorBox) errorBox.textContent = error.message; }
+    return;
+  }
+  if (kind === 'create-account') {
+    const errorBox = $('.form-error', form);
+    try {
+      const response = await fetch('/api/auth/create-account', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: value(form, 'name'), email: value(form, 'email'), role: value(form, 'role'), employeeId: value(form, 'employeeId'), password: value(form, 'password') }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Account could not be created.');
+      await refreshAccounts();
+      form.reset();
+      render();
+      setToast(`${result.account.name} can now sign in to the ${roleNames[result.account.role]} portal.`);
+    } catch (error) { if (errorBox) errorBox.textContent = error.message; }
+    return;
+  }
   if (kind === 'create-task') return submitAction('createTask', form, { title: value(form,'title'), module: value(form,'module'), ownerId: value(form,'ownerId'), project: value(form,'project'), committedDate: value(form,'committedDate'), priority: value(form,'priority') });
   if (kind === 'report-bug') return submitAction('reportBug', form, { taskId: value(form,'taskId'), title: value(form,'title'), severity: value(form,'severity'), foundAt: value(form,'foundAt'), description: value(form,'description') });
   if (kind === 'log-hours') {
@@ -709,7 +782,6 @@ document.addEventListener('submit', async (event) => {
 });
 
 document.addEventListener('change', async (event) => {
-  if (event.target.id === 'loginEmployee') { employeeId = event.target.value; if (!signedIn) render(); return; }
   if (event.target.id === 'taskStatus') { selectedTaskStatus = event.target.value; render(); return; }
   if (event.target.id === 'payrollMonth') { selectedPayrollMonth = event.target.value; render(); return; }
   if (event.target.id === 'rateBasis') {
@@ -732,6 +804,19 @@ window.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && modal) { modal = ''; render(); }
 });
 
-try { await refreshState(false); connectLive(); }
+try {
+  const [statusResponse, meResponse] = await Promise.all([fetch('/api/auth/status', { cache: 'no-store' }), fetch('/api/auth/me', { cache: 'no-store' })]);
+  if (!statusResponse.ok || !meResponse.ok) throw new Error('Could not check account access.');
+  setupRequired = (await statusResponse.json()).setupRequired;
+  authAccount = (await meResponse.json()).account;
+  if (authAccount) {
+    role = authAccount.role;
+    employeeId = authAccount.employeeId || '';
+    signedIn = true;
+    await refreshState(false);
+    if (role === 'admin') await refreshAccounts();
+    connectLive();
+  } else { signedIn = false; state = null; render(); }
+}
 catch (error) { $('#app').innerHTML = `<div class="loading-shell"><strong>Workspace could not start</strong><p>${esc(error.message)}</p><button class="button primary" onclick="location.reload()">Retry</button></div>`; }
 

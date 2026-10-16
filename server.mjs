@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,6 +10,8 @@ const dataRoot = path.join(root, 'data');
 const dbPath = path.join(dataRoot, 'workspace.json');
 const port = Number(process.env.PORT || 4173);
 const clients = new Set();
+const sessions = new Map();
+const sessionLifetimeMs = 12 * 60 * 60 * 1000;
 let mutationQueue = Promise.resolve();
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml' };
 
@@ -56,7 +58,7 @@ function seed() {
       { id: randomUUID(), at: ago(12), actor: 'Maya Rao', role: 'manager', action: 'Cause confirmed', detail: 'B-087 · Original delivery · justification recorded.' },
       { id: randomUUID(), at: ago(7), actor: 'Leena Das', role: 'team-lead', action: 'Corrective hours approved', detail: '1.5 hours · B-087 · November payroll preview notified.' },
       { id: randomUUID(), at: ago(21), actor: 'Maya Rao', role: 'manager', action: 'External change confirmed', detail: 'B-083 · Client scope change · excluded from payroll deduction.' },
-    ], payroll: []
+    ], payroll: [], accounts: []
   };
 }
 
@@ -69,6 +71,7 @@ async function loadDb() {
       throw new Error('The saved workspace does not match the expected data format. Keep the file for recovery and repair it before restarting.');
     }
     db = saved;
+    if (!Array.isArray(db.accounts)) { db.accounts = []; await persist(); }
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
     db = seed();
@@ -91,16 +94,103 @@ function sendJson(res, status, body) {
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
   res.end(JSON.stringify(body));
 }
+function safeAccount(account) {
+  if (!account) return null;
+  return { id: account.id, email: account.email, name: account.name, role: account.role, employeeId: account.employeeId || null, createdAt: account.createdAt };
+}
+function sessionAccount(req) {
+  const cookie = req.headers.cookie || '';
+  const token = cookie.split(';').map((part) => part.trim()).find((part) => part.startsWith('rl_session='))?.slice('rl_session='.length);
+  if (!token) return null;
+  const session = sessions.get(token);
+  if (!session || session.expiresAt <= Date.now()) { sessions.delete(token); return null; }
+  const account = db.accounts.find((item) => item.id === session.accountId && item.active !== false);
+  if (!account || (account.role === 'employee' && !db.employees.some((item) => item.id === account.employeeId && item.active))) { sessions.delete(token); return null; }
+  return account;
+}
+function newSession(res, account) {
+  const token = randomBytes(32).toString('base64url');
+  sessions.set(token, { accountId: account.id, expiresAt: Date.now() + sessionLifetimeMs });
+  res.setHeader('set-cookie', `rl_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.floor(sessionLifetimeMs / 1000)}`);
+}
+function clearSession(req, res) {
+  const token = (req.headers.cookie || '').split(';').map((part) => part.trim()).find((part) => part.startsWith('rl_session='))?.slice('rl_session='.length);
+  if (token) sessions.delete(token);
+  res.setHeader('set-cookie', 'rl_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0');
+}
+function passwordRecord(password) {
+  const salt = randomBytes(16).toString('hex');
+  return { salt, hash: scryptSync(password, salt, 64).toString('hex') };
+}
+function passwordMatches(password, account) {
+  try {
+    const expected = Buffer.from(account.passwordHash, 'hex');
+    const actual = scryptSync(password, account.passwordSalt, 64);
+    return expected.length === actual.length && timingSafeEqual(expected, actual);
+  } catch { return false; }
+}
+function publicWorkspace(account) {
+  const result = structuredClone(db);
+  delete result.accounts;
+  if (account.role !== 'employee') {
+    if (['team-lead', 'manager'].includes(account.role)) {
+      result.employees.forEach((employee) => { delete employee.hourlyRate; delete employee.dailyRate; delete employee.monthlySalary; delete employee.payBasis; });
+      result.payroll = [];
+    }
+    return result;
+  }
+  const employeeId = account.employeeId;
+  const taskIds = new Set(result.tasks.filter((item) => item.ownerId === employeeId).map((item) => item.id));
+  const bugIds = new Set(result.bugs.filter((item) => taskIds.has(item.taskId) || item.reportedBy === employeeId).map((item) => item.id));
+  result.employees = result.employees.filter((item) => item.id === employeeId);
+  result.tasks = result.tasks.filter((item) => taskIds.has(item.id));
+  result.bugs = result.bugs.filter((item) => bugIds.has(item.id));
+  result.timeEntries = result.timeEntries.filter((item) => item.employeeId === employeeId);
+  result.notices = result.notices.filter((item) => item.employeeId === employeeId);
+  result.audit = [];
+  result.payroll = result.payroll.map((report) => {
+    const rows = report.rows.filter((row) => row.employeeId === employeeId);
+    const inputRecords = (report.inputRecords || []).filter((entry) => entry.employeeId === employeeId);
+    const ownDefects = (report.sourceSummary?.defectsFound || []).filter((item) => item.ownerId === employeeId);
+    const ownApproved = inputRecords.filter((item) => item.status === 'approved');
+    const ownEligible = ownApproved.filter((item) => item.cause === 'original');
+    const ownExternal = ownApproved.filter((item) => item.cause === 'external');
+    const sourceSummary = { defectsFound: ownDefects, correctiveHours: inputRecords.reduce((sum, item) => sum + Number(item.hours), 0), eligibleHours: ownEligible.reduce((sum, item) => sum + Number(item.hours), 0), excludedExternalHours: ownExternal.reduce((sum, item) => sum + Number(item.hours), 0), excludedExternalEstimate: ownExternal.reduce((sum, item) => sum + Number(item.estimatedAmount || 0), 0), payrollAdjustment: rows.reduce((sum, row) => sum + row.deduction, 0) };
+    return { ...report, rows, inputRecords, sourceSummary, totalGross: rows.reduce((sum, row) => sum + row.gross, 0), totalDeduction: rows.reduce((sum, row) => sum + row.deduction, 0), totalNet: rows.reduce((sum, row) => sum + row.net, 0) };
+  });
+  return result;
+}
+function createAccountRecord(data) {
+  const email = String(data.email || '').trim().toLowerCase();
+  const name = String(data.name || '').trim();
+  const role = String(data.role || '');
+  const password = String(data.password || '');
+  const employeeId = role === 'employee' ? String(data.employeeId || '') : null;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) throw new Error('Enter a valid work email.');
+  if (!name || name.length > 80) throw new Error('Enter a name (up to 80 characters).');
+  if (!['employee', 'team-lead', 'manager', 'finance', 'admin'].includes(role)) throw new Error('Choose one of the available portal roles.');
+  if (password.length < 10 || password.length > 1024) throw new Error('Use a password between 10 and 1,024 characters.');
+  if (db.accounts.some((item) => item.email === email)) throw new Error('An account already exists for that email.');
+  if (role === 'employee') {
+    const employee = db.employees.find((item) => item.id === employeeId && item.active);
+    if (!employee) throw new Error('Choose an active employee profile for this employee account.');
+    if (db.accounts.some((item) => item.role === 'employee' && item.employeeId === employeeId && item.active !== false)) throw new Error('That employee already has a login account.');
+  }
+  const credential = passwordRecord(password);
+  const account = { id: randomUUID(), email, name, role, employeeId, passwordSalt: credential.salt, passwordHash: credential.hash, createdAt: new Date().toISOString(), active: true };
+  db.accounts.push(account);
+  audit(name, role, 'Portal account created', `${email} · ${role}`);
+  return account;
+}
 function audit(actor, role, action, detail) {
   db.audit.unshift({ id: randomUUID(), at: new Date().toISOString(), actor, role, action, detail });
 }
 function notify(employeeId, title, message, type = 'payroll') {
   db.notices.unshift({ id: randomUUID(), employeeId, title, message, at: new Date().toISOString(), read: false, type });
 }
-function actorInfo(body) {
-  const employee = db.employees.find((item) => item.id === body.actorId);
-  const role = body.role || 'employee';
-  return { name: employee?.name || (role === 'team-lead' ? 'Leena Das' : role === 'manager' ? 'Maya Rao' : role === 'finance' ? 'Nora Iyer' : 'Workspace admin'), role, employee };
+function actorInfo(account) {
+  const employee = account.role === 'employee' ? db.employees.find((item) => item.id === account.employeeId && item.active) : null;
+  return { name: employee?.name || account.name, role: account.role, employee };
 }
 function can(role, allowed) { return allowed.includes(role); }
 function findTask(id) { return db.tasks.find((item) => item.id === id); }
@@ -162,8 +252,8 @@ function payrollBlockers(report) {
 }
 function validateRole(role, allowed) { if (!can(role, allowed)) throw new Error('This action is not available for the selected role.'); }
 
-async function command(body) {
-  const { name, role, employee } = actorInfo(body);
+async function command(body, account) {
+  const { name, role, employee } = actorInfo(account);
   const d = body.data || {};
   switch (body.action) {
     case 'createTask': {
@@ -297,19 +387,68 @@ async function readBody(req) {
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-    if (req.method === 'GET' && url.pathname === '/api/state') return sendJson(res, 200, db);
+    if (req.method === 'GET' && url.pathname === '/api/auth/status') return sendJson(res, 200, { setupRequired: db.accounts.length === 0 });
+    if (req.method === 'GET' && url.pathname === '/api/auth/me') return sendJson(res, 200, { account: safeAccount(sessionAccount(req)) });
+    if (req.method === 'POST' && url.pathname === '/api/auth/login') {
+      const body = await readBody(req);
+      const email = String(body.email || '').trim().toLowerCase();
+      const account = db.accounts.find((item) => item.email === email && item.active !== false);
+      const validRole = ['employee', 'team-lead', 'manager', 'finance', 'admin'].includes(body.role);
+      if (!validRole || !account || account.role !== body.role || !passwordMatches(String(body.password || ''), account) || (account.role === 'employee' && !db.employees.some((item) => item.id === account.employeeId && item.active))) {
+        return sendJson(res, 401, { error: 'Email or password is incorrect for this portal.' });
+      }
+      newSession(res, account);
+      return sendJson(res, 200, { account: safeAccount(account) });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/auth/logout') { clearSession(req, res); return sendJson(res, 200, { ok: true }); }
+    if (req.method === 'POST' && url.pathname === '/api/auth/create-account') {
+      const body = await readBody(req);
+      const current = sessionAccount(req);
+      const wasFirstAccount = db.accounts.length === 0;
+      if (wasFirstAccount && body.role !== 'admin') return sendJson(res, 409, { error: 'Create the first administrator account before adding other roles.' });
+      if (!wasFirstAccount && current?.role !== 'admin') return sendJson(res, current ? 403 : 401, { error: current ? 'Only an administrator can add accounts.' : 'Sign in as an administrator to add accounts.' });
+      const operation = mutationQueue.then(async () => {
+        const previous = db;
+        db = structuredClone(db);
+        try {
+          if ((db.accounts.length === 0) !== wasFirstAccount) throw new Error('Account setup changed in another request. Reload and try again.');
+          const account = createAccountRecord(body);
+          await persist();
+          broadcast();
+          return account;
+        } catch (error) { db = previous; throw error; }
+      });
+      mutationQueue = operation.catch(() => {});
+      const account = await operation;
+      if (wasFirstAccount) newSession(res, account);
+      return sendJson(res, 201, { account: safeAccount(account), setupComplete: wasFirstAccount });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/accounts') {
+      const account = sessionAccount(req);
+      if (!account) return sendJson(res, 401, { error: 'Sign in to view accounts.' });
+      if (account.role !== 'admin') return sendJson(res, 403, { error: 'Only an administrator can view accounts.' });
+      return sendJson(res, 200, { accounts: db.accounts.map(safeAccount) });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/state') {
+      const account = sessionAccount(req);
+      if (!account) return sendJson(res, 401, { error: 'Sign in to open the workspace.' });
+      return sendJson(res, 200, publicWorkspace(account));
+    }
     if (req.method === 'GET' && url.pathname === '/api/events') {
+      if (!sessionAccount(req)) return sendJson(res, 401, { error: 'Sign in to connect live updates.' });
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive', 'access-control-allow-origin': 'same-origin' });
       res.write(`event: connected\ndata: ${JSON.stringify({ version: db.version, updatedAt: db.updatedAt })}\n\n`); clients.add(res); req.on('close', () => clients.delete(res)); return;
     }
     if (req.method === 'GET' && url.pathname === '/api/health') return sendJson(res, 200, { ok: true, version: db.version });
     if (req.method === 'POST' && url.pathname === '/api/command') {
+      const account = sessionAccount(req);
+      if (!account) return sendJson(res, 401, { error: 'Your session ended. Sign in again to save changes.' });
       const body = await readBody(req);
       const operation = mutationQueue.then(async () => {
         const previous = db;
         db = structuredClone(db);
         try {
-          const result = await command(body);
+          const result = await command(body, account);
           await persist();
           broadcast();
           return { result, version: db.version, updatedAt: db.updatedAt };

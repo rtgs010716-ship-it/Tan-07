@@ -11,17 +11,19 @@ Rework Ledger tracks task delivery, linked defects, corrective maintenance, mana
 
 The app uses Node.js built-in modules, so there is no dependency install step. If npm is available, `npm start` runs the same server and `npm run dev` restarts it when source files change.
 
-## Demo roles
+## Portal sign-in and accounts
 
-The app opens with a portal chooser, followed by an illustrated sign-in page and role-specific home page. Use **Switch role** in the header to return to the chooser:
+On first run, choose **Set up the first administrator** on the portal chooser. That one-time setup creates the administrator login. Sign in, open **Accounts** in the sidebar, and create a separate login for each role. Employee accounts must be linked to an active employee profile. After setup, every portal requires the email and password for an account assigned to that role. Use **Sign out** to return to the chooser.
+
+The app supports these role-specific pages and workflows:
 
 - **Employee**: report a defect, log regular or corrective hours, review notices, and see a payslip preview.
 - **Team lead**: assign tasks, move reopened tasks into fix, approve or reject corrective hours with a written reason, verify fixes, and view quality signals and the audit trail.
 - **Manager**: review the linked delivery evidence and classify a defect as original-delivery or external with a written reason. An external cause is excluded; manager cause review never approves time by itself.
 - **Finance**: edit rates, review monthly calculations, inspect linked payslip lines, and finalize payroll.
-- **Administrator**: oversee operational records, reports, decisions, and the audit trail.
+- **Administrator**: create and review portal accounts, oversee operational records, reports, decisions, and the audit trail.
 
-The role chooser is a demonstration convenience, not authentication. It has no passwords or real accounts. The local server persists data and publishes live updates, but does not authenticate people or protect production access controls. Do not put real employee or payroll data in this demo.
+Passwords are stored as salted scrypt hashes in the ignored local database file; the server issues an HttpOnly session cookie and derives action permissions from that session rather than trusting a role sent by the browser. The first administrator can only be created while the account list is empty. This local app is a development demonstration, not a production identity system: use HTTPS, an organization identity provider, a production database, and reviewed access controls before using real employee or payroll data.
 
 ## Data and live updates
 
@@ -35,7 +37,7 @@ Stop the server, remove `data/workspace.json`, and start it again. The server wi
 
 ## Before real payroll use
 
-Add authenticated employee accounts and identity-backed server permissions, secure the database and backups, define the applicable pay policy with your finance and HR teams, and review local employment and payroll requirements. The demo role chooser is not an access control system. Keep payroll decisions reviewable and make no deduction without the approved hours, linked defect, cause decision, and recorded reason.
+Use an organization identity provider and a secured production database with protected backups, define the applicable pay policy with finance and HR, and review local employment and payroll requirements. Keep payroll decisions reviewable and make no deduction without the approved hours, linked defect, cause decision, and recorded reason.
 
 ## Files
 
