@@ -61,15 +61,29 @@ function seed() {
 let db;
 async function loadDb() {
   await mkdir(dataRoot, { recursive: true });
-  try { db = JSON.parse(await readFile(dbPath, 'utf8')); }
-  catch { db = seed(); await persist(); }
+  try {
+    const saved = JSON.parse(await readFile(dbPath, 'utf8'));
+    if (!saved || typeof saved !== 'object' || !Number.isFinite(saved.version) || !Array.isArray(saved.employees) || !Array.isArray(saved.tasks) || !Array.isArray(saved.bugs) || !Array.isArray(saved.timeEntries) || !Array.isArray(saved.notices) || !Array.isArray(saved.audit) || !Array.isArray(saved.payroll)) {
+      throw new Error('The saved workspace does not match the expected data format. Keep the file for recovery and repair it before restarting.');
+    }
+    db = saved;
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    db = seed();
+    await persist();
+  }
 }
 async function persist() {
   db.updatedAt = new Date().toISOString();
   db.version += 1;
   const temp = `${dbPath}.tmp`;
-  await writeFile(temp, JSON.stringify(db, null, 2), 'utf8');
-  await rename(temp, dbPath);
+  try {
+    await writeFile(temp, JSON.stringify(db, null, 2), 'utf8');
+    await rename(temp, dbPath);
+  } catch (error) {
+    error.statusCode = 500;
+    throw error;
+  }
 }
 function sendJson(res, status, body) {
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
@@ -246,9 +260,17 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/api/command') {
       const body = await readBody(req);
       const operation = mutationQueue.then(async () => {
-        const result = await command(body);
-        await persist(); broadcast();
-        return { result, version: db.version, updatedAt: db.updatedAt };
+        const previous = db;
+        db = structuredClone(db);
+        try {
+          const result = await command(body);
+          await persist();
+          broadcast();
+          return { result, version: db.version, updatedAt: db.updatedAt };
+        } catch (error) {
+          db = previous;
+          throw error;
+        }
       });
       mutationQueue = operation.catch(() => {});
       return sendJson(res, 200, await operation);
@@ -260,7 +282,7 @@ const server = http.createServer(async (req, res) => {
     const bytes = await readFile(filePath);
     res.writeHead(200, { 'content-type': mime[path.extname(filePath)] || 'application/octet-stream', 'cache-control': 'no-cache' }); res.end(bytes);
   } catch (error) {
-    if (!res.headersSent) sendJson(res, 400, { error: error.message || 'Request failed.' }); else res.end();
+    if (!res.headersSent) sendJson(res, error.statusCode || 400, { error: error.message || 'Request failed.' }); else res.end();
   }
 });
 

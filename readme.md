@@ -24,7 +24,7 @@ The role selector is a demonstration convenience, not authentication. The local 
 
 ## Data and live updates
 
-The Node server saves the workspace to `data/workspace.json` after each accepted action. It sends Server-Sent Events to open tabs, which reload the saved state immediately when another action changes the database. Regular time entries and corrective hours have different types. Payroll counts only approved corrective hours whose linked defect is confirmed as caused by the original delivery; an external cause, pending hours, and rejected hours are excluded. The next payroll month is computed from the month in which the rework occurred.
+The Node server saves the workspace to `data/workspace.json` after each accepted action. It sends Server-Sent Events to open tabs, which reload the saved state immediately when another action changes the database. A failed write rolls the action back in memory; malformed saved data stops startup instead of silently replacing it with demo data. Regular time entries and corrective hours have different types. Payroll counts only approved corrective hours whose linked defect is confirmed as caused by the original delivery; an external cause, pending hours, and rejected hours are excluded. The next payroll month is computed from the month in which the rework occurred.
 
 The calculation is `min(gross monthly salary, approved eligible hours × hourly rate)`. A daily rate uses the configured eight-hour workday to find an hourly equivalent. Amounts are rounded to paise before display; the demo payslip displays whole rupees. Finalized payroll stores a snapshot, and the audit history records the actor, decision, time, and reason.
 
