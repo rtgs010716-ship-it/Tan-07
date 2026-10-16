@@ -13,18 +13,19 @@ The app uses Node.js built-in modules, so there is no dependency install step. I
 
 ## Demo roles
 
-The app opens with a role chooser. Select a role to open its role-specific home page. Use **Switch role** in the header to return to the chooser:
+The app opens with a portal chooser, followed by an illustrated sign-in page and role-specific home page. Use **Switch role** in the header to return to the chooser:
 
 - **Employee**: report a defect, log regular or corrective hours, review notices, and see a payslip preview.
-- **Team lead**: assign tasks, move reopened tasks into fix, review corrective hours, classify defect cause with a written reason, verify fixes, and view quality signals and the audit trail.
+- **Team lead**: assign tasks, move reopened tasks into fix, approve or reject corrective hours with a written reason, verify fixes, and view quality signals and the audit trail.
+- **Manager**: review the linked delivery evidence and classify a defect as original-delivery or external with a written reason. An external cause is excluded; manager cause review never approves time by itself.
 - **Finance**: edit rates, review monthly calculations, inspect linked payslip lines, and finalize payroll.
-- **Administrator**: preview all operational controls.
+- **Administrator**: oversee operational records, reports, decisions, and the audit trail.
 
 The role chooser is a demonstration convenience, not authentication. It has no passwords or real accounts. The local server persists data and publishes live updates, but does not authenticate people or protect production access controls. Do not put real employee or payroll data in this demo.
 
 ## Data and live updates
 
-The Node server saves the workspace to `data/workspace.json` after each accepted action. It sends Server-Sent Events to open tabs, which reload the saved state immediately when another action changes the database. A failed write rolls the action back in memory; malformed saved data stops startup instead of silently replacing it with demo data. Regular time entries and corrective hours have different types. Payroll counts only approved corrective hours whose linked defect is confirmed as caused by the original delivery; an external cause, pending hours, and rejected hours are excluded. The next payroll month is computed from the month in which the rework occurred.
+The Node server saves the workspace to `data/workspace.json` after each accepted action. It sends Server-Sent Events to open tabs, which reload the saved state immediately when another action changes the database. A failed write rolls the action back in memory; malformed saved data stops startup instead of silently replacing it with demo data. Regular time entries and corrective hours have different types. The team lead reviews hours; the manager separately reviews defect cause. Payroll counts only approved corrective hours whose linked defect is confirmed as caused by the original delivery; an external cause, pending hours, and rejected hours are excluded. Monthly summaries can show the rate-based estimate for approved external-cause time, clearly marked as excluded and not deducted. The next payroll month is computed from the month in which the rework occurred.
 
 The calculation is `min(gross monthly salary, approved eligible hours × hourly equivalent)`. A daily rate uses the employee's configured workday. The server rounds each time entry to paise, caps deductions at gross pay, and stores the source records, rate basis, and calculation version with finalized payroll. The UI shows paise when a value has a fractional rupee. The audit history records the actor, decision, time, and reason.
 

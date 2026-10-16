@@ -24,8 +24,9 @@ const icons = {
 
 let state = null;
 let view = 'overview';
-const validRoles = ['employee', 'team-lead', 'finance', 'admin'];
+const validRoles = ['employee', 'team-lead', 'manager', 'finance', 'admin'];
 let role = validRoles.includes(localStorage.getItem('rl-role')) ? localStorage.getItem('rl-role') : 'team-lead';
+let loginStage = 'choose';
 let employeeId = localStorage.getItem('rl-employee') || 'emp-aisha';
 let signedIn = sessionStorage.getItem('rl-signed-in') === 'true';
 let modal = '';
@@ -37,21 +38,29 @@ let eventSource;
 let pending = false;
 let searchTimer;
 
-const roleNames = { employee: 'Employee', 'team-lead': 'Team lead', finance: 'Finance', admin: 'Administrator' };
+const roleNames = { employee: 'Employee', 'team-lead': 'Team lead', manager: 'Manager', finance: 'Finance', admin: 'Administrator' };
+const portalProfiles = {
+  employee: { intro: 'Deliver assigned tasks and track rework tied to your work.', see: ['Your task queue and lifecycle history', 'Defects linked to delivered modules', 'Advance notice for eligible next-month hours', 'Your gross, rework adjustment, and net payslip'], do: ['Log regular work and corrective hours separately', 'Review task history and defect updates', 'Read notices before payroll is finalized'] },
+  'team-lead': { intro: 'Keep delivery moving and verify fixes against the original task.', see: ['Team tasks and delivery status', 'Corrective hours waiting for a reasoned review'], do: ['Assign tasks with a committed date', 'Approve or reject corrective hours with a reason', 'Verify fixes before closing a reopened task'] },
+  manager: { intro: 'Review delivery cause fairly before any corrective time can affect payroll.', see: ['Defect, original module, and delivery owner', 'Approved and pending corrective hours', 'Quality metrics and decision history'], do: ['Classify original-delivery or external cause with evidence', 'Exclude external changes from payroll eligibility with a reason', 'Review quality signals and the audit trail'] },
+  finance: { intro: 'Review the month, source hours, and itemized payroll estimate.', see: ['Approved, eligible corrective hours by employee', 'Excluded external-cause work and next-month estimates', 'Gross, capped deduction, and net salary'], do: ['Review rate records and source details', 'Finalize only after required reviews are complete', 'Read the saved payroll snapshot and audit trail'] },
+  admin: { intro: 'Oversee workspace activity and keep the full record traceable.', see: ['Tasks, defects, hours, and payroll snapshots', 'Quality signals by module, project, and owner', 'A timestamped audit trail'], do: ['Assign delivery and review records', 'Inspect persistent workspace data', 'Follow all role pages and lifecycle events'] },
+};
 const nav = [
   { id: 'overview', label: 'Home', icon: 'overview', group: 'YOUR WORKSPACE' },
+  { id: 'notifications', label: 'Notifications', icon: 'bell', group: 'YOUR WORKSPACE', roles: validRoles, count: () => state?.notices.filter((notice) => !notice.read && (role !== 'employee' || notice.employeeId === employeeId)).length || 0 },
   { id: 'tasks', label: 'Modules & tasks', icon: 'tasks', group: 'DELIVERY', roles: ['employee', 'team-lead', 'admin'] },
-  { id: 'defects', label: 'Defect register', icon: 'bug', group: 'REWORK', roles: ['employee', 'team-lead', 'admin'], count: () => state?.bugs.filter((bug) => bug.status !== 'Closed').length || 0 },
+  { id: 'defects', label: 'Defect register', icon: 'bug', group: 'REWORK', roles: ['employee', 'team-lead', 'manager', 'admin'], count: () => state?.bugs.filter((bug) => bug.status !== 'Closed').length || 0 },
   { id: 'time', label: 'Time review', icon: 'clock', roles: ['employee', 'team-lead', 'admin'], count: () => state?.timeEntries.filter((entry) => entry.type === 'corrective' && entry.status === 'pending').length || 0 },
   { id: 'payroll', label: 'Payroll', icon: 'payroll', group: 'PAYROLL', roles: ['employee', 'finance', 'admin'] },
-  { id: 'insights', label: 'Quality signals', icon: 'chart', roles: ['team-lead', 'finance', 'admin'] },
-  { id: 'audit', label: 'Audit trail', icon: 'audit', roles: ['team-lead', 'finance', 'admin'] },
+  { id: 'insights', label: 'Quality signals', icon: 'chart', roles: ['team-lead', 'manager', 'finance', 'admin'] },
+  { id: 'audit', label: 'Audit trail', icon: 'audit', roles: ['team-lead', 'manager', 'finance', 'admin'] },
 ];
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const esc = (value = '') => String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 const currentEmployee = () => state?.employees.find((item) => item.id === employeeId) || state?.employees[0];
-const actorName = () => role === 'employee' ? currentEmployee()?.name || 'Employee' : role === 'team-lead' ? 'Leena Das' : role === 'finance' ? 'Nora Iyer' : 'Workspace admin';
+const actorName = () => role === 'employee' ? currentEmployee()?.name || 'Employee' : role === 'team-lead' ? 'Leena Das' : role === 'manager' ? 'Maya Rao' : role === 'finance' ? 'Nora Iyer' : 'Workspace admin';
 const initials = (name = '') => name.split(/\s+/).map((part) => part[0] || '').slice(0, 2).join('').toUpperCase();
 const money = (amount) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Number(amount || 0));
 const moneyRate = (amount) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(amount || 0));
@@ -121,22 +130,37 @@ function roleSwitcher() {
 function roleChooser() {
   const roles = [
     { id: 'employee', icon: 'people', title: 'Employee', detail: 'Work your queue, report defects, log hours, and review your payslip.' },
-    { id: 'team-lead', icon: 'tasks', title: 'Team lead', detail: 'Assign delivery, review causes and hours, and verify completed fixes.' },
+    { id: 'team-lead', icon: 'tasks', title: 'Team lead', detail: 'Assign delivery, review hours, and verify completed fixes.' },
+    { id: 'manager', icon: 'shield', title: 'Manager', detail: 'Review defect cause and deduction eligibility with written evidence.' },
     { id: 'finance', icon: 'payroll', title: 'Finance', detail: 'Review rates, inspect the month-by-month payroll calculation, and finalize.' },
     { id: 'admin', icon: 'shield', title: 'Administrator', detail: 'Oversee workspace activity, reports, and the full audit trail.' },
   ];
-  return `<main class="login-shell"><section class="login-card" aria-labelledby="loginTitle">
-    <div class="login-story"><div class="login-brand"><span class="brand-mark">${buttonIcon('mark')}</span><span><strong>REWORK LEDGER</strong><small>QUALITY OPERATIONS</small></span></div>
-      <div class="login-orbit-art" aria-hidden="true"><div class="login-orbit orbit-a"></div><div class="login-orbit orbit-b"></div><div class="login-orbit-core">${buttonIcon('mark')}</div><span class="login-node node-a">DELIVERY</span><span class="login-node node-b">REVIEW</span><span class="login-node node-c">PAYROLL</span></div>
+  const brand = `<div class="login-brand"><span class="brand-mark">${buttonIcon('mark')}</span><span><strong>REWORK LEDGER</strong><small>QUALITY OPERATIONS</small></span></div>`;
+  if (loginStage === 'portal') {
+    const profile = portalProfiles[role];
+    const iconName = role === 'employee' ? 'people' : role === 'finance' ? 'payroll' : role === 'admin' || role === 'manager' ? 'shield' : 'tasks';
+    return `<main class="login-shell"><section class="portal-auth-card" aria-labelledby="loginTitle">
+      <div class="portal-story">${brand}<div class="portal-story-topline">REWORK · REVIEW · PAYROLL</div><div class="portal-motion" aria-label="Animated delivery lifecycle"><span class="motion-track"></span>${['ASSIGNED','IN PROGRESS','COMPLETED','REOPENED','UNDER FIX','CLOSED'].map((step, index) => `<span class="motion-step motion-step-${index + 1}"><i></i>${step}</span>`).join('')}</div>
+        <div class="portal-story-copy"><div class="login-eyebrow">${esc(roleNames[role].toUpperCase())} PORTAL</div><h1>${esc(roleNames[role])} portal</h1><p>${esc(profile.intro)}</p>
+          <div class="portal-info-grid"><div><span>WHAT YOU SEE</span><ul>${profile.see.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div><div><span>WHAT YOU CAN DO</span><ul>${profile.do.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div></div>
+        </div><div class="login-live-note"><span class="live-dot"></span><span>Persistent local database · live updates</span></div>
+      </div>
+      <div class="portal-form"><div class="eyebrow">DEMO WORKSPACE · ${esc(roleNames[role].toUpperCase())}</div><span class="login-profile-badge portal-badge">${esc(roleNames[role])}</span><h2 id="loginTitle">Sign in as ${esc(roleNames[role])}</h2><p class="login-subtitle">Open the pages and records connected to this role.</p>
+        ${role === 'employee' ? `<label class="login-employee-field" for="loginEmployee">Employee profile<select id="loginEmployee">${state.employees.filter((employee) => employee.active).map((employee) => `<option value="${esc(employee.id)}" ${employee.id === employeeId ? 'selected' : ''}>${esc(employee.name)} · ${esc(employee.title)}</option>`).join('')}</select></label>` : `<div class="login-profile portal-profile"><span class="login-profile-icon">${buttonIcon(iconName)}</span><span><small>DEMO PROFILE</small><strong>${esc(actorName())}</strong></span><span class="login-profile-badge">${esc(roleNames[role])}</span></div>`}
+        <button type="button" class="button primary login-submit" data-action="enter-workspace">Open ${esc(roleNames[role])} workspace ${buttonIcon('arrow')}</button>
+        <div class="demo-disclosure"><span>${buttonIcon('shield')}</span><p>Demo portal: no password is collected or verified. Use fictional sample profiles; production sign-in requires your organization’s identity provider.</p></div>
+        <button type="button" class="button text portal-back" data-action="choose-portals">${buttonIcon('arrow')} Choose another portal</button>
+      </div>
+    </section><footer class="login-footer">MERIDIAN QUALITY WORKSPACE <span>·</span> Changes save to the local database as they happen</footer></main>`;
+  }
+  return `<main class="login-shell"><section class="login-card portal-picker-card" aria-labelledby="loginTitle">
+    <div class="login-story">${brand}<div class="login-orbit-art" aria-hidden="true"><div class="login-orbit orbit-a"></div><div class="login-orbit orbit-b"></div><div class="login-orbit-core">${buttonIcon('mark')}</div><span class="login-node node-a">DELIVERY</span><span class="login-node node-b">REVIEW</span><span class="login-node node-c">PAYROLL</span></div>
       <div class="login-story-copy"><div class="login-eyebrow">One record · every decision</div><h1>Keep the full story<br/>attached to the work.</h1><p>Follow delivery, defect, fix, and payroll review in a live, traceable workspace.</p></div>
       <div class="login-live-note"><span class="live-dot"></span><span>Local database · connected updates</span></div>
     </div>
-    <div class="login-form"><div class="eyebrow">DEMO WORKSPACE · ROLE LOGIN</div><h2 id="loginTitle">Sign in to your workspace</h2><p class="login-subtitle">Choose a role and open its home page with the tasks and records for that role.</p>
-      <div class="role-grid" role="group" aria-label="Choose a workspace role">${roles.map((item) => `<button type="button" class="role-card ${role === item.id ? 'selected' : ''}" data-action="select-role" data-role="${item.id}" aria-pressed="${role === item.id}"><span class="role-card-icon">${buttonIcon(item.icon)}</span><span class="role-card-copy"><strong>${esc(item.title)}</strong><small>${esc(item.detail)}</small></span><span class="role-card-check">${buttonIcon('check')}</span></button>`).join('')}</div>
-      ${role === 'employee' ? `<label class="login-employee-field" for="loginEmployee">Employee profile<select id="loginEmployee">${state.employees.filter((employee) => employee.active).map((employee) => `<option value="${esc(employee.id)}" ${employee.id === employeeId ? 'selected' : ''}>${esc(employee.name)} · ${esc(employee.title)}</option>`).join('')}</select></label>` : ''}
-      <div class="login-profile"><span class="login-profile-icon">${buttonIcon(role === 'employee' ? 'people' : role === 'finance' ? 'payroll' : role === 'admin' ? 'shield' : 'tasks')}</span><span><small>DEMO PROFILE</small><strong>${esc(role === 'employee' ? currentEmployee()?.name || 'Employee profile' : actorName())}</strong></span><span class="login-profile-badge">${esc(roleNames[role])}</span></div>
-      <button type="button" class="button primary login-submit" data-action="enter-workspace">Continue as ${esc(roleNames[role])} ${buttonIcon('arrow')}</button>
-      <div class="demo-disclosure"><span>${buttonIcon('shield')}</span><p>Demo sign-in only: role selection does not authenticate a real account. Use fictional records; production access needs an identity provider.</p></div>
+    <div class="login-form"><div class="eyebrow">DEMO WORKSPACE · ROLE PORTALS</div><h2 id="loginTitle">Choose your portal</h2><p class="login-subtitle">Each role opens a home page with its own tasks, reports, and actions.</p>
+      <div class="role-grid" role="group" aria-label="Choose a workspace role">${roles.map((item) => `<button type="button" class="role-card" data-action="open-portal" data-role="${item.id}"><span class="role-card-icon">${buttonIcon(item.icon)}</span><span class="role-card-copy"><strong>${esc(item.title)} portal</strong><small>${esc(item.detail)}</small></span><span class="role-card-check">${buttonIcon('arrow')}</span></button>`).join('')}</div>
+      <div class="demo-disclosure"><span>${buttonIcon('shield')}</span><p>Demo portal selection only. No password is collected or checked; live identity verification is not configured.</p></div>
     </div>
   </section><footer class="login-footer">MERIDIAN QUALITY WORKSPACE <span>·</span> Changes save to the local database as they happen</footer></main>`;
 }
@@ -148,7 +172,8 @@ function navMarkup() {
     let section = '';
     if (item.group && group !== item.group) { group = item.group; section = `<div class="side-label" style="${item.id === 'overview' ? '' : 'margin-top:20px'}">${esc(group)}</div>`; }
     const count = item.count?.();
-    return `${section}<button class="nav-item ${view === item.id ? 'active' : ''}" data-action="navigate" data-view="${item.id}">${icon(item.icon)}<span>${esc(item.label)}</span>${count > 0 ? `<span class="nav-count">${count}</span>` : ''}</button>`;
+    const label = item.id === 'defects' && role === 'manager' ? 'Deduction review' : item.id === 'insights' && role === 'manager' ? 'Quality metrics' : item.label;
+    return `${section}<button class="nav-item ${view === item.id ? 'active' : ''}" data-action="navigate" data-view="${item.id}">${icon(item.icon)}<span>${esc(label)}</span>${count > 0 ? `<span class="nav-count">${count}</span>` : ''}</button>`;
   }).join('');
 }
 
@@ -165,7 +190,7 @@ function topbar() {
   </header>`;
 }
 
-function viewLabel(id) { return ({ overview: 'Home', tasks: role === 'employee' ? 'My task board' : 'Modules & tasks', defects: role === 'employee' ? 'My defect register' : 'Defect register', time: role === 'employee' ? 'My time log' : 'Time review', payroll: role === 'employee' ? 'My payslip' : 'Payroll', insights: 'Quality signals', audit: 'Audit trail', notifications: 'Notifications' })[id] || 'Workspace'; }
+function viewLabel(id) { return ({ overview: 'Home', tasks: role === 'employee' ? 'My task board' : 'Modules & tasks', defects: role === 'employee' ? 'My defect register' : role === 'manager' ? 'Deduction review' : 'Defect register', time: role === 'employee' ? 'My time log' : 'Time review', payroll: role === 'employee' ? 'My payslip' : 'Payroll', insights: role === 'manager' ? 'Quality metrics' : 'Quality signals', audit: 'Audit trail', notifications: 'Notifications' })[id] || 'Workspace'; }
 function pageHead(eyebrow, title, subtitle, actions = '') {
   return `<div class="page-head"><div><div class="eyebrow">${esc(eyebrow)}</div><h1>${esc(title)}</h1><p class="page-subtitle">${esc(subtitle)}</p></div>${actions ? `<div class="head-actions">${actions}</div>` : ''}</div>`;
 }
@@ -183,18 +208,27 @@ function rolePageLinks() {
       ['defects', 'bug', 'My defect register', 'Track issues linked to my delivered work.'],
       ['time', 'clock', 'My time log', 'Log regular work and corrective hours separately.'],
       ['payroll', 'payroll', 'My payslip', 'Review the next-month estimate and linked records.'],
+      ['notifications', 'bell', 'Notifications', 'Read advance notice and task updates.'],
     ],
     'team-lead': [
       ['tasks', 'tasks', 'Delivery board', 'Assign work and follow every task state.'],
-      ['defects', 'bug', 'Defect review', 'Classify causes and send work back for a fix.'],
+      ['defects', 'bug', 'Defect register', 'Follow linked issues and send work back for a fix.'],
       ['time', 'clock', 'Hour approvals', 'Review corrective hours with a written reason.'],
       ['insights', 'chart', 'Quality signals', 'Compare reopens, fix time, and rework by module.'],
       ['audit', 'audit', 'Audit trail', 'Trace decisions to their actor and timestamp.'],
+      ['notifications', 'bell', 'Notifications', 'See changes and review updates.'],
+    ],
+    manager: [
+      ['defects', 'shield', 'Deduction review', 'Review delivery cause and exclusion evidence before payroll.'],
+      ['insights', 'chart', 'Quality metrics', 'Compare reopen rate, fix time, and corrective effort.'],
+      ['audit', 'audit', 'Audit trail', 'Trace manager decisions with their reasons and timestamps.'],
+      ['notifications', 'bell', 'Notifications', 'See review and workspace updates.'],
     ],
     finance: [
       ['payroll', 'payroll', 'Payroll review', 'Inspect rates, source hours, deductions, and net pay.'],
       ['insights', 'chart', 'Quality signals', 'See monthly quality patterns alongside payroll.'],
       ['audit', 'audit', 'Audit trail', 'Review saved approvals and payroll decisions.'],
+      ['notifications', 'bell', 'Notifications', 'See payroll and review updates.'],
     ],
     admin: [
       ['tasks', 'tasks', 'Modules & tasks', 'Open assignments and delivery history.'],
@@ -203,9 +237,10 @@ function rolePageLinks() {
       ['payroll', 'payroll', 'Payroll', 'Open the monthly estimate and saved snapshots.'],
       ['insights', 'chart', 'Quality signals', 'Compare quality by module, project, and owner.'],
       ['audit', 'audit', 'Audit trail', 'Inspect the full workspace record.'],
+      ['notifications', 'bell', 'Notifications', 'See all workspace notices.'],
     ],
   }[role];
-  return `<section class="role-pages" aria-label="${esc(roleNames[role])} pages"><div class="role-pages-heading"><div><div class="eyebrow">YOUR WORKSPACE</div><h2>Where do you want to go?</h2><p>Open the pages connected to your ${esc(roleNames[role].toLowerCase())} tasks. Notifications are available from the bell above.</p></div><span class="role-pages-count">${routes.length} pages</span></div><div class="role-page-grid">${routes.map(([viewId, iconName, title, detail]) => `<button class="role-page-card" data-action="navigate" data-view="${viewId}"><span class="role-page-icon">${buttonIcon(iconName)}</span><span class="role-page-copy"><strong>${esc(title)}</strong><small>${esc(detail)}</small></span><span class="role-page-arrow">${buttonIcon('arrow')}</span></button>`).join('')}</div></section>`;
+  return `<section class="role-pages" aria-label="${esc(roleNames[role])} pages"><div class="role-pages-heading"><div><div class="eyebrow">YOUR WORKSPACE</div><h2>Where do you want to go?</h2><p>Open a page connected to your ${esc(roleNames[role].toLowerCase())} tasks from here or the navigation.</p></div><span class="role-pages-count">${routes.length} pages</span></div><div class="role-page-grid">${routes.map(([viewId, iconName, title, detail]) => `<button class="role-page-card" data-action="navigate" data-view="${viewId}"><span class="role-page-icon">${buttonIcon(iconName)}</span><span class="role-page-copy"><strong>${esc(title)}</strong><small>${esc(detail)}</small></span><span class="role-page-arrow">${buttonIcon('arrow')}</span></button>`).join('')}</div></section>`;
 }
 
 function workflowAnimation() {
@@ -274,11 +309,12 @@ function overview() {
   const activeBugs = state.bugs.filter((bug) => bug.status !== 'Closed');
   const pending = state.timeEntries.filter((entry) => entry.type === 'corrective' && entry.status === 'pending' && (role !== 'finance' || entry.date.startsWith(payroll.sourceMonth)));
   const recentTasks = homeTasks.slice().sort((a, b) => String(b.committedDate).localeCompare(String(a.committedDate))).slice(0, 4);
-  const lead = role === 'employee' ? `Good morning, ${currentEmployee()?.name.split(' ')[0] || 'there'}.` : role === 'finance' ? 'Payroll, with its evidence.' : role === 'admin' ? 'A clear view of quality.' : 'Quality work, in focus.';
-  const intro = role === 'employee' ? 'Your delivery, rework, and next-payroll information are together here.' : role === 'finance' ? 'Every payroll adjustment links back to the reviewed corrective work, its rate, and its source month.' : role === 'admin' ? 'Review the complete workflow, workspace activity, and traceable quality records.' : 'Follow task ownership from delivery through defect review and verified close.';
+  const lead = role === 'employee' ? `Good morning, ${currentEmployee()?.name.split(' ')[0] || 'there'}.` : role === 'finance' ? 'Payroll, with its evidence.' : role === 'admin' ? 'A clear view of quality.' : role === 'manager' ? 'Fair review, before payroll.' : 'Quality work, in focus.';
+  const intro = role === 'employee' ? 'Your delivery, rework, and next-payroll information are together here.' : role === 'finance' ? 'Every payroll adjustment links back to the reviewed corrective work, its rate, and its source month.' : role === 'admin' ? 'Review the complete workflow, workspace activity, and traceable quality records.' : role === 'manager' ? 'Check the linked delivery evidence and classify cause before finance calculates payroll.' : 'Follow task ownership from delivery through corrective-hour review and verified close.';
   const home = {
     employee: { title: 'Your delivery, with the whole story attached.', copy: 'See assigned work, report a defect against its original task, and track corrective hours and payroll notices.', primary: ['Open my task board', 'tasks'], secondary: ['View my payslip', 'payroll'] },
-    'team-lead': { title: 'Return every defect to the work that shipped.', copy: 'Review the cause and corrective hours separately, then verify the fix before a task is closed.', primary: ['Review open defects', 'defects'], secondary: ['Explore quality signals', 'insights'] },
+    'team-lead': { title: 'Keep delivery and hour review connected.', copy: 'Assign work, review corrective hours with evidence, and verify the fix before a task is closed.', primary: ['Open delivery board', 'tasks'], secondary: ['Review hour entries', 'time'] },
+    manager: { title: 'Review cause before payroll eligibility.', copy: 'Confirm whether a defect came from the original delivery or a later external change. The evidence and reason stay in the audit trail.', primary: ['Open deduction review', 'defects'], secondary: ['Review quality metrics', 'insights'] },
     finance: { title: 'Review each adjustment before payroll closes.', copy: 'Follow approved hours back to their source task, cause review, employee rate, and monthly pay impact.', primary: ['Review payroll preview', 'payroll'], secondary: ['Monthly quality report', 'insights'] },
     admin: { title: 'Keep delivery, fairness, and history in view.', copy: 'Oversee role activity, persistent records, and the full sequence of changes across the workspace.', primary: ['Open audit trail', 'audit'], secondary: ['Workspace quality report', 'insights'] },
   }[role];
@@ -286,10 +322,11 @@ function overview() {
   const openBugsForRole = role === 'employee' ? activeBugs.filter((bug) => taskById(bug.taskId)?.ownerId === employeeId) : activeBugs;
   const pendingForRole = role === 'employee' ? pending.filter((entry) => entry.employeeId === employeeId) : pending;
   const causeReviews = openBugsForRole.filter((bug) => bug.cause === 'pending').length;
-  const reportButton = role === 'finance' ? '' : `<button class="button ghost" data-action="report-defect">${buttonIcon('bug')} Report defect</button>`;
+  const reportButton = ['finance','manager'].includes(role) ? '' : `<button class="button ghost" data-action="report-defect">${buttonIcon('bug')} Report defect</button>`;
   const fourthStat = role === 'team-lead'
     ? { label: 'Cause reviews', value: causeReviews, foot: 'Written review before eligibility', icon: 'shield' }
-    : { label: `${monthLabel(payroll.month)} ${role === 'employee' ? 'payslip' : 'estimate'}`, value: money(role === 'employee' ? payroll.rows.find((row) => row.employeeId === employeeId)?.deduction : payroll.totalDeduction), foot: payroll.finalized ? 'Finalized payroll' : 'Approved original-delivery hours only', icon: 'payroll' };
+    : role === 'manager' ? { label: 'Cause reviews', value: causeReviews, foot: 'Written manager review before eligibility', icon: 'shield' }
+      : { label: `${monthLabel(payroll.month)} ${role === 'employee' ? 'payslip' : 'estimate'}`, value: money(role === 'employee' ? payroll.rows.find((row) => row.employeeId === employeeId)?.deduction : payroll.totalDeduction), foot: payroll.finalized ? 'Finalized payroll' : 'Approved original-delivery hours only', icon: 'payroll' };
   const deliveryStatLabel = role === 'finance' ? 'Payroll source tasks' : role === 'employee' ? 'My deliveries' : 'Tracked deliveries';
   return `${pageHead(`QUALITY OPERATIONS · ${monthLabel(monthKey()).toUpperCase()} CYCLE`, lead, intro, `${reportButton}${['team-lead','admin'].includes(role) ? `<button class="button primary" data-action="new-task">${buttonIcon('plus')} Assign task</button>` : role === 'employee' ? `<button class="button primary" data-action="log-time">${buttonIcon('clock')} Log hours</button>` : ''}`)}
     <section class="hero"><div class="hero-copy"><div class="hero-kicker">${esc(roleNames[role])} home · one record from delivery to close</div><h2>${esc(home.title)}</h2><p>${esc(home.copy)}</p><div class="hero-actions"><button class="button primary" data-action="navigate" data-view="${home.primary[1]}">${esc(home.primary[0])} ${buttonIcon('arrow')}</button><button class="button ghost" data-action="navigate" data-view="${home.secondary[1]}">${esc(home.secondary[0])}</button></div></div><div class="hero-art">${workflowAnimation()}</div></section>
@@ -349,13 +386,13 @@ function signalSummary() {
 }
 
 function taskActions(task) {
-  if (role === 'finance') return '';
+  if (role === 'finance' || role === 'manager') return '';
   const own = role !== 'employee' || task.ownerId === employeeId;
   if (!own) return '';
   if (task.status === 'Assigned') return `<button class="button small primary" data-action="advance-task" data-id="${esc(task.id)}" data-status="In Progress">Start</button>`;
   if (task.status === 'In Progress') return `<button class="button small primary" data-action="advance-task" data-id="${esc(task.id)}" data-status="Completed">Mark complete</button>`;
   if (task.status === 'Completed') return `<button class="button small ghost" data-action="report-defect" data-task-id="${esc(task.id)}">Report defect</button>`;
-  if (task.status === 'Reopened' && role !== 'employee') return `<button class="button small primary" data-action="advance-task" data-id="${esc(task.id)}" data-status="Under Fix">Assign fix</button>`;
+  if (task.status === 'Reopened' && ['team-lead','admin'].includes(role)) return `<button class="button small primary" data-action="advance-task" data-id="${esc(task.id)}" data-status="Under Fix">Assign fix</button>`;
   if (task.status === 'Under Fix' && ['team-lead','admin'].includes(role)) return `<button class="button small primary" data-action="advance-task" data-id="${esc(task.id)}" data-status="Closed">Verify & close</button>`;
   if (task.status === 'Under Fix' && role === 'employee') return '<span class="cell-sub">Lead verifies fix</span>';
   return '';
@@ -373,12 +410,43 @@ function tasksPage() {
 }
 
 function defectsPage() {
+  if (role === 'manager') return deductionReviewPage();
   const bugs = role === 'employee' ? state.bugs.filter((bug) => taskById(bug.taskId)?.ownerId === employeeId || bug.reportedBy === employeeId) : state.bugs;
   const actions = `<button class="button primary" data-action="report-defect">${buttonIcon('plus')} Report defect</button>`;
   return `${pageHead('REOPENED DELIVERY', 'Defect register', 'Every defect points back to the shipped task and original delivery owner.', actions)}
     <div class="metric-strip"><div class="mini-metric"><span>Open defects</span><strong>${bugs.filter((bug) => bug.status !== 'Closed').length}</strong><small>linked to original delivery tasks</small></div><div class="mini-metric"><span>Cause pending</span><strong>${bugs.filter((bug) => bug.cause === 'pending').length}</strong><small>no payroll decision made</small></div><div class="mini-metric"><span>Externally caused</span><strong>${bugs.filter((bug) => bug.cause === 'external').length}</strong><small>excluded from deductions</small></div></div>
     <div class="panel"><div class="panel-head"><div><h2 class="panel-title">Linked defects</h2><p class="panel-note">Cause, correction, and payroll eligibility remain separate manager decisions.</p></div><span class="panel-aux">${bugs.length} defects</span></div>
-    ${bugs.length ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>Defect</th><th>Original task & owner</th><th>Found</th><th>Severity</th><th>Cause review</th><th>Lifecycle</th><th>Action</th></tr></thead><tbody>${bugs.map((bug) => { const task = taskById(bug.taskId); const owner = employeeById(task?.ownerId); const hours = state.timeEntries.filter((entry) => entry.bugId === bug.id && entry.type === 'corrective').reduce((sum, entry) => sum + entry.hours, 0); return `<tr><td><div class="cell-strong">${esc(bug.title)}</div><div class="cell-sub">${esc(bug.id)} · ${hours.toFixed(hours % 1 ? 1 : 0)}h logged</div></td><td><div class="cell-strong">${esc(task?.id || 'Missing task')} · ${esc(task?.module || 'Unknown module')}</div><div class="cell-sub">Original owner: ${esc(owner?.name || 'Unknown')}</div></td><td class="mono">${shortDate(bug.foundAt)}</td><td><span class="severity ${esc(bug.severity)}">${esc(bug.severity)}</span></td><td>${bugCause(bug)}${bug.causeReason ? `<div class="cell-sub">${esc(bug.causeReason)}</div>` : ''}</td><td>${taskStatus(bug.status)}</td><td>${['team-lead','admin'].includes(role) ? `<button class="button small ghost" data-action="classify-bug" data-id="${esc(bug.id)}">Review cause</button>` : `<button class="button small ghost" data-action="bug-details" data-id="${esc(bug.id)}">Details</button>`}</td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty-state">No linked defects yet. A reported issue will reopen its original task automatically.</div>'}</div>`;
+    ${bugs.length ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>Defect</th><th>Original task & owner</th><th>Found</th><th>Severity</th><th>Cause review</th><th>Lifecycle</th><th>Action</th></tr></thead><tbody>${bugs.map((bug) => { const task = taskById(bug.taskId); const owner = employeeById(task?.ownerId); const hours = state.timeEntries.filter((entry) => entry.bugId === bug.id && entry.type === 'corrective').reduce((sum, entry) => sum + entry.hours, 0); return `<tr><td><div class="cell-strong">${esc(bug.title)}</div><div class="cell-sub">${esc(bug.id)} · ${hours.toFixed(hours % 1 ? 1 : 0)}h logged</div></td><td><div class="cell-strong">${esc(task?.id || 'Missing task')} · ${esc(task?.module || 'Unknown module')}</div><div class="cell-sub">Original owner: ${esc(owner?.name || 'Unknown')}</div></td><td class="mono">${shortDate(bug.foundAt)}</td><td><span class="severity ${esc(bug.severity)}">${esc(bug.severity)}</span></td><td>${bugCause(bug)}${bug.causeReason ? `<div class="cell-sub">${esc(bug.causeReason)}</div>` : ''}</td><td>${taskStatus(bug.status)}</td><td>${role === 'admin' ? `<button class="button small ghost" data-action="classify-bug" data-id="${esc(bug.id)}">Review cause</button>` : `<button class="button small ghost" data-action="bug-details" data-id="${esc(bug.id)}">Details</button>`}</td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty-state">No linked defects yet. A reported issue will reopen its original task automatically.</div>'}</div>`;
+}
+
+function deductionReviewPage() {
+  const payroll = computePayroll();
+  const source = payroll.sourceMonth;
+  const approved = state.timeEntries.filter((entry) => entry.type === 'corrective' && entry.status === 'approved' && entry.date.startsWith(source));
+  const pendingCause = state.bugs.filter((bug) => bug.cause === 'pending').length;
+  const externalEntries = approved.filter((entry) => bugById(entry.bugId)?.cause === 'external');
+  const externalEstimate = payroll.finalized
+    ? (payroll.inputRecords || []).filter((entry) => entry.status === 'approved' && entry.cause === 'external').reduce((sum, entry) => sum + Number(entry.estimatedAmount || 0), 0)
+    : externalEntries.reduce((sum, entry) => sum + correctiveAmountPaise(entry, employeeById(entry.employeeId)), 0) / 100;
+  const picker = `<select class="filter-select" id="payrollMonth" aria-label="Payroll month">${[shiftMonth(monthKey(), -1), monthKey(), shiftMonth(monthKey(), 1), shiftMonth(monthKey(), 2)].map((item) => `<option value="${item}" ${item === payroll.month ? 'selected' : ''}>${esc(monthLabel(item))}</option>`).join('')}</select>`;
+  const rows = state.bugs.map((bug) => {
+    const task = taskById(bug.taskId); const owner = employeeById(task?.ownerId);
+    const entries = state.timeEntries.filter((entry) => entry.bugId === bug.id && entry.type === 'corrective' && entry.date.startsWith(source));
+    const approvedEntries = entries.filter((entry) => entry.status === 'approved');
+    const eligible = bug.cause === 'original' ? approvedEntries : [];
+    const hours = eligible.reduce((sum, entry) => sum + Number(entry.hours), 0);
+    const estimate = payroll.finalized
+      ? payroll.rows.flatMap((row) => row.lines || []).filter((line) => line.bugId === bug.id).reduce((sum, line) => sum + Number(line.amount || 0), 0)
+      : eligible.reduce((sum, entry) => sum + correctiveAmountPaise(entry, employeeById(entry.employeeId)), 0) / 100;
+    return { bug, task, owner, entries, approvedEntries, hours, estimate };
+  }).filter((item) => item.entries.length || item.bug.cause === 'pending');
+  const allApprovedHours = approved.reduce((sum, entry) => sum + Number(entry.hours), 0);
+  return `${pageHead('MANAGER REVIEW · EVIDENCE FIRST', 'Deduction review', `Review ${monthLabel(source)} corrective work before ${monthLabel(payroll.month)} payroll. Cause review is separate from the team lead’s hour approval.`, picker)}
+    <div class="metric-strip"><div class="mini-metric"><span>Approved corrective hours</span><strong>${allApprovedHours.toFixed(2)}h</strong><small>${esc(monthLabel(source))} source work</small></div><div class="mini-metric"><span>Original-delivery estimate</span><strong>${money(payroll.totalDeduction)}</strong><small>rate-based preview · finance finalizes</small></div><div class="mini-metric"><span>External change excluded</span><strong>${money(externalEstimate)}</strong><small>${externalEntries.reduce((sum, entry) => sum + Number(entry.hours), 0).toFixed(2)}h · not deducted</small></div><div class="mini-metric"><span>Cause reviews pending</span><strong>${pendingCause}</strong><small>must be documented before payroll</small></div></div>
+    <div class="inline-note info" style="margin-bottom:13px">Manager cause decision: original delivery may become eligible after the team lead approves hours. External change is excluded with a written reason. Pending or rejected time is never included. No automated score assigns fault or changes pay.</div>
+    <div class="panel"><div class="panel-head"><div><h2 class="panel-title">${esc(monthLabel(source))} source work</h2><p class="panel-note">Each row returns to the original task, module, employee, and corrective-hour review.</p></div><span class="panel-aux">Payroll month · ${esc(monthLabel(payroll.month))}</span></div>
+    ${rows.length ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>Employee</th><th>Module / defect</th><th>Approved hours</th><th>Cause</th><th>Estimated amount</th><th>Action</th></tr></thead><tbody>${rows.map(({ bug, task, owner, entries, hours, estimate }) => { const finalizedBug = state.payroll.some((report) => report.inputRecords?.some((entry) => entry.bugId === bug.id) || report.sourceSummary?.defectsFound?.some((item) => item.bugId === bug.id) || report.rows?.some((row) => row.lines?.some((line) => line.bugId === bug.id))); return `<tr><td><div class="cell-strong">${esc(owner?.name || 'Unknown')}</div><div class="cell-sub">Original delivery owner</div></td><td><div class="cell-strong">${esc(task?.module || 'Unknown module')} / ${esc(task?.id || 'Missing task')}</div><div class="cell-sub">${esc(bug.id)} · ${esc(bug.title)}</div></td><td><div class="cell-strong">${entries.filter((entry) => entry.status === 'approved').reduce((sum, entry) => sum + Number(entry.hours), 0).toFixed(2)}h</div><div class="cell-sub">${entries.filter((entry) => entry.status === 'pending').reduce((sum, entry) => sum + Number(entry.hours), 0).toFixed(2)}h pending</div></td><td>${bugCause(bug)}${bug.causeReason ? `<div class="cell-sub">${esc(bug.causeReason)}</div>` : ''}</td><td class="cell-strong">${bug.cause === 'original' ? money(estimate) : bug.cause === 'external' ? 'Excluded' : 'Pending review'}</td><td><button class="button small ${bug.cause === 'pending' ? 'primary' : 'ghost'}" data-action="classify-bug" data-id="${esc(bug.id)}" ${finalizedBug ? 'disabled title="This cause is part of finalized payroll."' : ''}>${finalizedBug ? 'Finalized' : 'Review cause'}</button></td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty-state">No corrective work is waiting for a manager cause review in this source month.</div>'}</div>
+    <div class="manager-review-footer"><span>${buttonIcon('chart')} Quality metrics never determine fault or payroll eligibility.</span><button class="button ghost" data-action="navigate" data-view="insights">Open quality metrics ${buttonIcon('arrow')}</button></div>`;
 }
 
 function timePage() {
@@ -404,6 +472,8 @@ function payrollPage() {
   const sourceBugs = (snapshotBugs || state.bugs.filter((bug) => bug.foundAt?.startsWith(payroll.sourceMonth)).map((bug) => ({ bugId: bug.id, ownerId: taskById(bug.taskId)?.ownerId, module: taskById(bug.taskId)?.module }))).filter((bug) => role !== 'employee' || bug.ownerId === employeeId);
   const sourceHours = sourceEntries.reduce((sum, entry) => sum + Number(entry.hours), 0);
   const sourceEligible = sourceEntries.filter((entry) => entry.status === 'approved' && (entry.cause ?? bugById(entry.bugId)?.cause) === 'original').reduce((sum, entry) => sum + Number(entry.hours), 0);
+  const sourceExcluded = sourceEntries.filter((entry) => entry.status === 'approved' && (entry.cause ?? bugById(entry.bugId)?.cause) === 'external');
+  const sourceExcludedAmount = sourceExcluded.reduce((sum, entry) => sum + Number(entry.estimatedAmount ?? correctiveAmountPaise(entry, employeeById(entry.employeeId)) / 100), 0);
   const sourceModules = new Set(sourceBugs.map((bug) => bug.module).filter(Boolean)).size;
   const sourceDeduction = role === 'employee' ? rows[0]?.deduction || 0 : payroll.totalDeduction;
   const finalizable = ['finance','admin'].includes(role);
@@ -412,7 +482,7 @@ function payrollPage() {
   const totalDeduction = role === 'employee' ? rows[0]?.deduction || 0 : payroll.totalDeduction;
   return `${pageHead('TRANSPARENT BY DESIGN', role === 'employee' ? 'Your payslip preview' : 'Payroll preview', `Approved corrective hours from ${monthLabel(payroll.sourceMonth)} are calculated for ${monthLabel(payroll.month)}.`, `${picker}${action}`)}
     <section class="payroll-hero"><div class="payroll-hero-copy"><div class="eyebrow">${payroll.finalized ? 'FINALIZED PAYROLL' : 'NEXT PAYROLL ESTIMATE'}</div><h2>${esc(monthLabel(payroll.month))}</h2><p>Source period · ${esc(monthLabel(payroll.sourceMonth))}<br/>${payroll.finalized ? `Finalized by ${esc(payroll.finalizedBy)} · ${shortDate(payroll.finalizedAt)}${payroll.finalizedReason ? `<br/>${esc(payroll.finalizedReason)}` : ''}` : 'Preview recalculates when an eligible hour is approved or a cause is reviewed.'}</p></div><div class="payroll-total"><span>${role === 'employee' ? 'Estimated deduction' : 'Total rework deduction'}</span><strong>${money(totalDeduction)}</strong></div></section>
-    <div class="monthly-summary"><div class="monthly-summary-heading"><strong>${esc(monthLabel(payroll.sourceMonth))} rework summary</strong><span>Source period · before ${esc(monthLabel(payroll.month))} payroll</span></div><div class="metric-strip" style="grid-template-columns:repeat(auto-fit,minmax(115px,1fr))"><div class="mini-metric"><span>Defects reported</span><strong>${sourceBugs.length}</strong><small>${sourceModules} affected module${sourceModules === 1 ? '' : 's'}</small></div><div class="mini-metric"><span>Corrective hours</span><strong>${sourceHours.toFixed(2)}h</strong><small>all statuses, separate from regular work</small></div><div class="mini-metric"><span>Payroll eligible</span><strong>${sourceEligible.toFixed(2)}h</strong><small>approved and original-cause confirmed</small></div><div class="mini-metric"><span>Estimated adjustment</span><strong style="font-size:15px">${money(sourceDeduction)}</strong><small>next-month total · approved hours only</small></div></div></div>
+    <div class="monthly-summary"><div class="monthly-summary-heading"><strong>${esc(monthLabel(payroll.sourceMonth))} rework summary</strong><span>Source period · before ${esc(monthLabel(payroll.month))} payroll</span></div><div class="metric-strip" style="grid-template-columns:repeat(auto-fit,minmax(115px,1fr))"><div class="mini-metric"><span>Defects reported</span><strong>${sourceBugs.length}</strong><small>${sourceModules} affected module${sourceModules === 1 ? '' : 's'}</small></div><div class="mini-metric"><span>Corrective hours</span><strong>${sourceHours.toFixed(2)}h</strong><small>all statuses, separate from regular work</small></div><div class="mini-metric"><span>Payroll eligible</span><strong>${sourceEligible.toFixed(2)}h</strong><small>approved and original-cause confirmed</small></div><div class="mini-metric"><span>Estimated adjustment</span><strong style="font-size:15px">${money(sourceDeduction)}</strong><small>next-month total · approved hours only</small></div><div class="mini-metric"><span>External change excluded</span><strong style="font-size:15px">${money(sourceExcludedAmount)}</strong><small>${sourceExcluded.reduce((sum, entry) => sum + Number(entry.hours), 0).toFixed(2)}h · estimate only, not deducted</small></div></div></div>
     ${finalizable && blockerCount ? `<div class="inline-note warning" style="margin-top:12px">${blockers.pendingHours.length} corrective hour entr${blockers.pendingHours.length === 1 ? 'y is' : 'ies are'} awaiting review and ${blockers.causeReview.length} approved entr${blockers.causeReview.length === 1 ? 'y has' : 'ies have'} an unresolved cause for ${esc(monthLabel(payroll.sourceMonth))}. Resolve these reviews before payroll can be finalized.</div>` : ''}
     <div style="height:12px"></div>
     <div class="inline-note" style="margin-bottom:13px">Calculation: approved corrective hours × employee hourly rate. Daily rates are converted to an hourly equivalent using the employee’s configured workday. External causes and pending or rejected hours are excluded. The deduction cannot exceed gross monthly salary.</div>
@@ -597,9 +667,10 @@ function value(form, name) { const item = new FormData(form).get(name); return i
 document.addEventListener('click', async (event) => {
   const target = event.target.closest('[data-action]'); if (!target) return;
   const action = target.dataset.action;
-  if (action === 'select-role') { role = target.dataset.role; if (role === 'employee' && !state.employees.some((item) => item.id === employeeId && item.active)) employeeId = state.employees.find((item) => item.active)?.id || ''; render(); return; }
-  if (action === 'enter-workspace') { if (role === 'employee') { employeeId = $('#loginEmployee')?.value || employeeId; if (!state.employees.some((item) => item.id === employeeId && item.active)) return; localStorage.setItem('rl-employee', employeeId); } localStorage.setItem('rl-role', role); sessionStorage.setItem('rl-signed-in', 'true'); signedIn = true; view = 'overview'; modal = ''; render(); return; }
-  if (action === 'switch-role') { sessionStorage.removeItem('rl-signed-in'); signedIn = false; modal = ''; view = 'overview'; render(); return; }
+  if (action === 'open-portal') { role = target.dataset.role; loginStage = 'portal'; if (role === 'employee' && !state.employees.some((item) => item.id === employeeId && item.active)) employeeId = state.employees.find((item) => item.active)?.id || ''; render(); return; }
+  if (action === 'choose-portals') { loginStage = 'choose'; render(); return; }
+  if (action === 'enter-workspace') { if (role === 'employee') { employeeId = $('#loginEmployee')?.value || employeeId; if (!state.employees.some((item) => item.id === employeeId && item.active)) return; localStorage.setItem('rl-employee', employeeId); } localStorage.setItem('rl-role', role); sessionStorage.setItem('rl-signed-in', 'true'); signedIn = true; loginStage = 'choose'; view = 'overview'; modal = ''; render(); return; }
+  if (action === 'switch-role') { sessionStorage.removeItem('rl-signed-in'); signedIn = false; loginStage = 'choose'; modal = ''; view = 'overview'; render(); return; }
   if (action === 'navigate') { view = target.dataset.view; modal = ''; if (!visibleNav().some((item) => item.id === view)) view = 'overview'; render(); if (innerWidth <= 820) $('#sidebar')?.classList.remove('open'); return; }
   if (action === 'sidebar-toggle') { $('#sidebar')?.classList.toggle('open'); return; }
   if (action === 'new-task') { if (['team-lead','admin'].includes(role)) showTaskForm(); return; }

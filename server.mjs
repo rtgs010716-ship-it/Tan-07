@@ -36,8 +36,8 @@ function seed() {
     { id: 'T-244', module: 'Revenue dashboard', project: 'Meridian finance platform', title: 'Add period comparison cards', ownerId: 'emp-aisha', status: 'Assigned', committedDate: ago(-9).slice(0, 10), completedAt: null, priority: 'Medium', tags: ['dashboard', 'analytics'], history: [taskHistory('Assigned', ago(1), 'Leena Das', 'Committed delivery date set.') ] },
   ];
   const bugs = [
-    { id: 'B-087', taskId: 'T-240', title: 'Rounding drift on converted invoices', description: 'A small rounding drift appears after currency conversion when multiple partial payments are reconciled.', severity: 'High', foundAt: ago(13), reportedBy: 'emp-dev', status: 'Under Fix', cause: 'original', causeReason: 'Reproduced against the committed conversion rules; reviewed by the team lead.', reviewedBy: 'Leena Das', reviewedAt: ago(12), closedAt: null, tags: ['currency', 'rounding', 'reconciliation'] },
-    { id: 'B-083', taskId: 'T-243', title: 'Alert copy for a new review state', description: 'A new client review state needs an alert label that was not part of the original acceptance criteria.', severity: 'Low', foundAt: ago(22), reportedBy: 'emp-ravi', status: 'Closed', cause: 'external', causeReason: 'Client introduced a new review state after delivery; excluded from rework deduction.', reviewedBy: 'Leena Das', reviewedAt: ago(21), closedAt: ago(19), tags: ['alerts', 'client-scope'] },
+    { id: 'B-087', taskId: 'T-240', title: 'Rounding drift on converted invoices', description: 'A small rounding drift appears after currency conversion when multiple partial payments are reconciled.', severity: 'High', foundAt: ago(13), reportedBy: 'emp-dev', status: 'Under Fix', cause: 'original', causeReason: 'Reproduced against the committed conversion rules; reviewed against the accepted delivery.', reviewedBy: 'Maya Rao', reviewedAt: ago(12), closedAt: null, tags: ['currency', 'rounding', 'reconciliation'] },
+    { id: 'B-083', taskId: 'T-243', title: 'Alert copy for a new review state', description: 'A new client review state needs an alert label that was not part of the original acceptance criteria.', severity: 'Low', foundAt: ago(22), reportedBy: 'emp-ravi', status: 'Closed', cause: 'external', causeReason: 'Client introduced a new review state after delivery; excluded from rework deduction.', reviewedBy: 'Maya Rao', reviewedAt: ago(21), closedAt: ago(19), tags: ['alerts', 'client-scope'] },
   ];
   const timeEntries = [
     { id: 'TIME-901', employeeId: 'emp-aisha', taskId: 'T-240', bugId: 'B-087', type: 'corrective', hours: 1.5, note: 'Reproduced and patched the conversion rounding issue.', date: ago(8).slice(0, 10), status: 'approved', createdAt: ago(8), reviewedBy: 'Leena Das', reviewedAt: ago(7), reviewNote: 'Matches the linked defect and fix notes.' },
@@ -53,9 +53,9 @@ function seed() {
     version: 1, updatedAt: now.toISOString(), employees, tasks, bugs, timeEntries, notices, audit: [
       { id: randomUUID(), at: ago(21), actor: 'Aisha Khan', role: 'employee', action: 'Task completed', detail: 'T-240 · Reconcile multi-currency invoices.' },
       { id: randomUUID(), at: ago(13), actor: 'Dev Shah', role: 'employee', action: 'Defect reported', detail: 'B-087 linked to T-240; original owner Aisha Khan.' },
-      { id: randomUUID(), at: ago(12), actor: 'Leena Das', role: 'team-lead', action: 'Cause confirmed', detail: 'B-087 · Original delivery · justification recorded.' },
+      { id: randomUUID(), at: ago(12), actor: 'Maya Rao', role: 'manager', action: 'Cause confirmed', detail: 'B-087 · Original delivery · justification recorded.' },
       { id: randomUUID(), at: ago(7), actor: 'Leena Das', role: 'team-lead', action: 'Corrective hours approved', detail: '1.5 hours · B-087 · November payroll preview notified.' },
-      { id: randomUUID(), at: ago(21), actor: 'Leena Das', role: 'team-lead', action: 'External change confirmed', detail: 'B-083 · Client scope change · excluded from payroll deduction.' },
+      { id: randomUUID(), at: ago(21), actor: 'Maya Rao', role: 'manager', action: 'External change confirmed', detail: 'B-083 · Client scope change · excluded from payroll deduction.' },
     ], payroll: []
   };
 }
@@ -100,7 +100,7 @@ function notify(employeeId, title, message, type = 'payroll') {
 function actorInfo(body) {
   const employee = db.employees.find((item) => item.id === body.actorId);
   const role = body.role || 'employee';
-  return { name: employee?.name || (role === 'team-lead' ? 'Leena Das' : role === 'finance' ? 'Nora Iyer' : 'Workspace admin'), role, employee };
+  return { name: employee?.name || (role === 'team-lead' ? 'Leena Das' : role === 'manager' ? 'Maya Rao' : role === 'finance' ? 'Nora Iyer' : 'Workspace admin'), role, employee };
 }
 function can(role, allowed) { return allowed.includes(role); }
 function findTask(id) { return db.tasks.find((item) => item.id === id); }
@@ -129,7 +129,7 @@ function payrollFor(targetMonth) {
   const sourceMonth = prevDate.toISOString().slice(0, 7);
   const inputRecords = db.timeEntries.filter((entry) => entry.type === 'corrective' && entry.date.startsWith(sourceMonth)).map((entry) => {
     const bug = findBug(entry.bugId); const task = findTask(entry.taskId); const employee = findEmployee(entry.employeeId);
-    return { timeId: entry.id, date: entry.date, employeeId: entry.employeeId, employee: employee?.name || 'Unknown employee', taskId: entry.taskId, module: task?.module || 'Unknown module', bugId: entry.bugId, hours: entry.hours, status: entry.status, cause: bug?.cause || 'missing', causeReason: bug?.causeReason || '', reviewNote: entry.reviewNote || '' };
+    return { timeId: entry.id, date: entry.date, employeeId: entry.employeeId, employee: employee?.name || 'Unknown employee', taskId: entry.taskId, module: task?.module || 'Unknown module', bugId: entry.bugId, hours: entry.hours, status: entry.status, cause: bug?.cause || 'missing', causeReason: bug?.causeReason || '', reviewNote: entry.reviewNote || '', estimatedAmount: employee ? correctiveAmountPaise(entry, employee) / 100 : 0 };
   });
   const rows = db.employees.filter((employee) => employee.active).map((employee) => {
     const eligible = db.timeEntries.filter((entry) => entry.employeeId === employee.id && entry.type === 'corrective' && entry.status === 'approved' && entry.date.startsWith(sourceMonth) && findBug(entry.bugId)?.cause === 'original');
@@ -146,7 +146,12 @@ function payrollFor(targetMonth) {
   });
   const defectsFound = db.bugs.filter((bug) => bug.foundAt?.startsWith(sourceMonth)).map((bug) => { const task = findTask(bug.taskId); return { bugId: bug.id, taskId: bug.taskId, module: task?.module || 'Unknown module', ownerId: task?.ownerId || null }; });
   const eligibleInputs = inputRecords.filter((entry) => entry.status === 'approved' && entry.cause === 'original');
-  const sourceSummary = { defectsFound, correctiveHours: inputRecords.reduce((sum, entry) => sum + Number(entry.hours), 0), eligibleHours: eligibleInputs.reduce((sum, entry) => sum + Number(entry.hours), 0), payrollAdjustment: rows.reduce((sum, row) => sum + row.deduction, 0) };
+  const excludedExternalInputs = inputRecords.filter((entry) => entry.status === 'approved' && entry.cause === 'external');
+  const excludedExternalEstimatePaise = excludedExternalInputs.reduce((sum, item) => {
+    const entry = db.timeEntries.find((candidate) => candidate.id === item.timeId); const employee = findEmployee(item.employeeId);
+    return sum + (entry && employee ? correctiveAmountPaise(entry, employee) : 0);
+  }, 0);
+  const sourceSummary = { defectsFound, correctiveHours: inputRecords.reduce((sum, entry) => sum + Number(entry.hours), 0), eligibleHours: eligibleInputs.reduce((sum, entry) => sum + Number(entry.hours), 0), excludedExternalHours: excludedExternalInputs.reduce((sum, entry) => sum + Number(entry.hours), 0), excludedExternalEstimate: excludedExternalEstimatePaise / 100, payrollAdjustment: rows.reduce((sum, row) => sum + row.deduction, 0) };
   return { month: targetMonth, sourceMonth, calculationVersion: 'paise-v1', inputRecords, sourceSummary, rows, totalGross: rows.reduce((sum, row) => sum + row.gross, 0), totalDeduction: sourceSummary.payrollAdjustment, totalNet: rows.reduce((sum, row) => sum + row.net, 0) };
 }
 function payrollBlockers(report) {
@@ -226,7 +231,7 @@ async function command(body) {
       return entry;
     }
     case 'classifyBug': {
-      validateRole(role, ['team-lead', 'admin']);
+      validateRole(role, ['manager', 'admin']);
       const bug = findBug(d.bugId); if (!bug) throw new Error('Defect not found.');
       if (!['original', 'external'].includes(d.cause) || !d.reason?.trim()) throw new Error('Choose a cause and record the review reason.');
       const finalized = db.payroll.find((report) => report.inputRecords?.some((entry) => entry.bugId === bug.id) || report.sourceSummary?.defectsFound?.some((item) => item.bugId === bug.id) || report.rows?.some((row) => row.lines?.some((line) => line.bugId === bug.id)));
