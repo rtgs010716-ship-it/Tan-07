@@ -33,6 +33,7 @@ CORE WORKFLOW
 - Calculate the deduction from approved corrective hours that a manager has attributed to the original delivery. Apply it to the following payroll month. Show the source month, hours, rate, task, defect, gross, deduction, and net. Do not deduct more than gross pay. Notify the employee before payroll is finalized.
 
 ROLES AND VIEWS
+- Start at an accessible role chooser and open a role-specific home page with shortcuts for that role's tasks. If the app has no configured identity provider, label the role chooser as a demo and never claim it authenticates a person.
 - Employee: assigned work, defect reporting, separate time logging, notices, and personal payslip.
 - Team lead or manager: assignment, defect cause review, time approval, fix verification, audit history, and quality reports.
 - Finance: editable pay rates, monthly deduction preview, transparent payslip review, and payroll finalization.
@@ -45,15 +46,18 @@ ACCURACY AND ANALYSIS
 - Log the input records used for every payroll result so the calculation can be reproduced.
 
 DATA, EXPERIENCE, AND DELIVERY
-- Save each accepted action immediately to a persistent real-time database and publish updates to connected sessions. Preserve recoverable audit history.
+- Save each accepted action immediately to a persistent database and publish updates to connected sessions. Preserve recoverable audit history.
+- Capture the rate, gross pay, source month, source time records, defect cause, review reason, and calculation version with every finalized payroll snapshot.
 - Build complete responsive pages for every role, accessible forms, helpful validation, clear empty/loading/error states, and subtle motion that respects reduced-motion settings.
 - Use fictional seed data only. Keep keys and secrets out of source control. Document local setup, database configuration, access rules, backup, and production deployment.
 - Before release, manually verify every lifecycle transition, fairness override, pending/approved/rejected hour, next-month calculation, salary cap, notice, and audit entry. Document limitations and never claim the demo is production-secure until authentication and server-enforced role rules are enabled.`;
 
 let state = null;
 let view = 'overview';
-let role = localStorage.getItem('rl-role') || 'team-lead';
+const validRoles = ['employee', 'team-lead', 'finance', 'admin'];
+let role = validRoles.includes(localStorage.getItem('rl-role')) ? localStorage.getItem('rl-role') : 'team-lead';
 let employeeId = localStorage.getItem('rl-employee') || 'emp-aisha';
+let signedIn = sessionStorage.getItem('rl-signed-in') === 'true';
 let modal = '';
 let taskSearch = '';
 let selectedTaskStatus = 'all';
@@ -80,7 +84,8 @@ const esc = (value = '') => String(value).replace(/[&<>"']/g, (char) => ({ '&': 
 const currentEmployee = () => state?.employees.find((item) => item.id === employeeId) || state?.employees[0];
 const actorName = () => role === 'employee' ? currentEmployee()?.name || 'Employee' : role === 'team-lead' ? 'Leena Das' : role === 'finance' ? 'Nora Iyer' : 'Workspace admin';
 const initials = (name = '') => name.split(/\s+/).map((part) => part[0] || '').slice(0, 2).join('').toUpperCase();
-const money = (amount) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Number(amount || 0));
+const money = (amount) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Number(amount || 0));
+const moneyRate = (amount) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(amount || 0));
 const shortDate = (value, opts = {}) => { if (!value) return '—'; const date = new Date(value.length === 10 ? `${value}T12:00:00` : value); return Number.isNaN(date.valueOf()) ? '—' : new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', ...opts }).format(date); };
 const timeAgo = (value) => { const ms = Date.now() - new Date(value).getTime(); if (!Number.isFinite(ms)) return 'recently'; const days = Math.floor(ms / 86400000); if (days < 0) return 'in the future'; if (days === 0) return 'today'; if (days === 1) return 'yesterday'; if (days < 30) return `${days} days ago`; return shortDate(value); };
 const monthLabel = (key) => { const [year, monthNo] = key.split('-').map(Number); return new Intl.DateTimeFormat('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(year, monthNo - 1, 1))); };
@@ -141,13 +146,29 @@ async function send(action, data) {
 }
 
 function roleSwitcher() {
-  const value = role === 'employee' ? `employee:${employeeId}` : role;
-  return `<select class="role-select" id="roleSwitcher" aria-label="Preview role">
-    <option value="team-lead" ${value === 'team-lead' ? 'selected' : ''}>Team lead view</option>
-    ${state.employees.map((employee) => `<option value="employee:${esc(employee.id)}" ${value === `employee:${employee.id}` ? 'selected' : ''}>Employee · ${esc(employee.name)}</option>`).join('')}
-    <option value="finance" ${value === 'finance' ? 'selected' : ''}>Finance view</option>
-    <option value="admin" ${value === 'admin' ? 'selected' : ''}>Admin view</option>
-  </select>`;
+  return `<button class="button small ghost role-switch" data-action="switch-role">Switch role</button>`;
+}
+
+function roleChooser() {
+  const roles = [
+    { id: 'employee', icon: 'people', title: 'Employee', detail: 'Work your queue, report defects, log hours, and review your payslip.' },
+    { id: 'team-lead', icon: 'tasks', title: 'Team lead', detail: 'Assign delivery, review causes and hours, and verify completed fixes.' },
+    { id: 'finance', icon: 'payroll', title: 'Finance', detail: 'Review rates, inspect the month-by-month payroll calculation, and finalize.' },
+    { id: 'admin', icon: 'shield', title: 'Administrator', detail: 'Oversee workspace activity, reports, and the full audit trail.' },
+  ];
+  return `<main class="login-shell"><section class="login-card" aria-labelledby="loginTitle">
+    <div class="login-story"><div class="login-brand"><span class="brand-mark">${buttonIcon('mark')}</span><span><strong>REWORK LEDGER</strong><small>QUALITY OPERATIONS</small></span></div>
+      <div class="login-orbit-art" aria-hidden="true"><div class="login-orbit orbit-a"></div><div class="login-orbit orbit-b"></div><div class="login-orbit-core">${buttonIcon('mark')}</div><span class="login-node node-a">DELIVERY</span><span class="login-node node-b">REVIEW</span><span class="login-node node-c">PAYROLL</span></div>
+      <div class="login-story-copy"><div class="login-eyebrow">One record · every decision</div><h1>Keep the full story<br/>attached to the work.</h1><p>Follow delivery, defect, fix, and payroll review in a live, traceable workspace.</p></div>
+      <div class="login-live-note"><span class="live-dot"></span><span>Local database · connected updates</span></div>
+    </div>
+    <div class="login-form"><div class="eyebrow">DEMO WORKSPACE</div><h2 id="loginTitle">Choose where to begin</h2><p class="login-subtitle">Select a role to open its home page and tools.</p>
+      <div class="role-grid" role="group" aria-label="Choose a workspace role">${roles.map((item) => `<button type="button" class="role-card ${role === item.id ? 'selected' : ''}" data-action="select-role" data-role="${item.id}" aria-pressed="${role === item.id}"><span class="role-card-icon">${buttonIcon(item.icon)}</span><span class="role-card-copy"><strong>${esc(item.title)}</strong><small>${esc(item.detail)}</small></span><span class="role-card-check">${buttonIcon('check')}</span></button>`).join('')}</div>
+      ${role === 'employee' ? `<label class="login-employee-field" for="loginEmployee">Employee profile<select id="loginEmployee">${state.employees.filter((employee) => employee.active).map((employee) => `<option value="${esc(employee.id)}" ${employee.id === employeeId ? 'selected' : ''}>${esc(employee.name)} · ${esc(employee.title)}</option>`).join('')}</select></label>` : ''}
+      <button type="button" class="button primary login-submit" data-action="enter-workspace">Open ${esc(roleNames[role])} home ${buttonIcon('arrow')}</button>
+      <div class="demo-disclosure"><span>${buttonIcon('shield')}</span><p>This is a demo role chooser, not secure sign-in. Use fictional records only; real accounts and permissions need an authentication provider.</p></div>
+    </div>
+  </section><footer class="login-footer">MERIDIAN QUALITY WORKSPACE <span>·</span> Changes save to the local database as they happen</footer></main>`;
 }
 
 function visibleNav() { return nav.filter((item) => !item.roles || item.roles.includes(role)); }
@@ -193,14 +214,25 @@ function computePayroll(target = payrollTarget()) {
     const eligible = state.timeEntries.filter((entry) => entry.employeeId === employee.id && entry.type === 'corrective' && entry.status === 'approved' && entry.date.startsWith(source) && bugById(entry.bugId)?.cause === 'original');
     const hours = eligible.reduce((sum, entry) => sum + Number(entry.hours), 0);
     const hourlyRate = employee.payBasis === 'daily' ? Number(employee.dailyRate || 0) / (employee.hoursPerDay || 8) : Number(employee.hourlyRate || (employee.dailyRate || 0) / (employee.hoursPerDay || 8));
-    const rawLines = eligible.map((entry) => ({ timeId: entry.id, taskId: entry.taskId, bugId: entry.bugId, module: taskById(entry.taskId)?.module || 'Unknown module', hours: entry.hours, amount: Math.round(entry.hours * hourlyRate * 100) / 100 }));
-    const requestedDeduction = rawLines.reduce((sum, line) => sum + line.amount, 0);
-    const deduction = Math.min(Number(employee.monthlySalary || 0), requestedDeduction);
-    let remaining = deduction;
-    const lines = rawLines.map((line) => { const appliedAmount = Math.round(Math.min(line.amount, remaining) * 100) / 100; remaining = Math.max(0, Math.round((remaining - appliedAmount) * 100) / 100); return { ...line, appliedAmount }; });
-    return { employeeId: employee.id, employee: employee.name, gross: employee.monthlySalary, hours, rate: hourlyRate, rateBasis: employee.payBasis === 'daily' ? `daily rate converted using ${employee.hoursPerDay || 8}h/day` : 'hourly rate', requestedDeduction, capApplied: requestedDeduction > deduction, deduction, net: Math.max(0, employee.monthlySalary - deduction), lines };
+    const rawLines = eligible.map((entry) => ({ timeId: entry.id, taskId: entry.taskId, bugId: entry.bugId, module: taskById(entry.taskId)?.module || 'Unknown module', hours: entry.hours, amountPaise: correctiveAmountPaise(entry, employee) }));
+    const requestedPaise = rawLines.reduce((sum, line) => sum + line.amountPaise, 0);
+    const grossPaise = Math.round(Number(employee.monthlySalary || 0) * 100);
+    const deductionPaise = Math.min(grossPaise, requestedPaise);
+    let remainingPaise = deductionPaise;
+    const lines = rawLines.map((line) => { const appliedPaise = Math.min(line.amountPaise, remainingPaise); remainingPaise -= appliedPaise; return { ...line, amount: line.amountPaise / 100, appliedAmount: appliedPaise / 100 }; });
+    const requestedDeduction = requestedPaise / 100; const deduction = deductionPaise / 100; const gross = grossPaise / 100;
+    return { employeeId: employee.id, employee: employee.name, gross, hours, rate: hourlyRate, rateBasis: employee.payBasis === 'daily' ? `daily rate converted using ${employee.hoursPerDay || 8}h/day` : 'hourly rate', requestedDeduction, capApplied: requestedPaise > deductionPaise, deduction, net: Math.max(0, gross - deduction), lines };
   });
   return { month: target, sourceMonth: source, rows, totalGross: rows.reduce((sum, row) => sum + row.gross, 0), totalDeduction: rows.reduce((sum, row) => sum + row.deduction, 0), totalNet: rows.reduce((sum, row) => sum + row.net, 0), finalized: false };
+}
+
+function correctiveAmountPaise(entry, employee) {
+  const quarterHours = Math.round(Number(entry.hours) * 4);
+  const hoursPerDay = Number(employee.hoursPerDay || 8);
+  const sourceRate = employee.payBasis === 'daily' ? Number(employee.dailyRate || Number(employee.hourlyRate || 0) * hoursPerDay) : Number(employee.hourlyRate || Number(employee.dailyRate || 0) / hoursPerDay);
+  const ratePaise = Math.round(sourceRate * 100);
+  const denominator = 4 * (employee.payBasis === 'daily' ? hoursPerDay : 1);
+  return Math.round(quarterHours * ratePaise / denominator);
 }
 function payrollBlockers(payroll) {
   const entries = state.timeEntries.filter((entry) => entry.type === 'corrective' && entry.date.startsWith(payroll.sourceMonth));
@@ -223,11 +255,19 @@ function overview() {
   const pending = state.timeEntries.filter((entry) => entry.type === 'corrective' && entry.status === 'pending');
   const recentTasks = tasks.slice().sort((a, b) => String(b.committedDate).localeCompare(String(a.committedDate))).slice(0, 4);
   const lead = role === 'employee' ? `Good morning, ${currentEmployee()?.name.split(' ')[0] || 'there'}.` : role === 'finance' ? 'Payroll, with its evidence.' : role === 'admin' ? 'A clear view of quality.' : 'Quality work, in focus.';
+  const intro = role === 'employee' ? 'Your delivery, rework, and next-payroll information are together here.' : role === 'finance' ? 'Every payroll adjustment links back to the reviewed corrective work, its rate, and its source month.' : role === 'admin' ? 'Review the complete workflow, workspace activity, and traceable quality records.' : 'Follow task ownership from delivery through defect review and verified close.';
+  const home = {
+    employee: { title: 'Your delivery, with the whole story attached.', copy: 'See assigned work, report a defect against its original task, and track corrective hours and payroll notices.', primary: ['Open my task board', 'tasks'], secondary: ['View my payslip', 'payroll'] },
+    'team-lead': { title: 'Return every defect to the work that shipped.', copy: 'Review the cause and corrective hours separately, then verify the fix before a task is closed.', primary: ['Review open defects', 'defects'], secondary: ['Explore quality signals', 'insights'] },
+    finance: { title: 'Review each adjustment before payroll closes.', copy: 'Follow approved hours back to their source task, cause review, employee rate, and monthly pay impact.', primary: ['Review payroll preview', 'payroll'], secondary: ['Monthly quality report', 'insights'] },
+    admin: { title: 'Keep delivery, fairness, and history in view.', copy: 'Oversee role activity, persistent records, and the full sequence of changes across the workspace.', primary: ['Open audit trail', 'audit'], secondary: ['Workspace quality report', 'insights'] },
+  }[role];
+  const recentActivity = role === 'employee' ? state.audit.filter((entry) => entry.actor === currentEmployee()?.name).slice(0, 4) : role === 'finance' ? state.audit.filter((entry) => entry.role === 'finance').slice(0, 4) : state.audit.slice(0, 4);
   const openBugsForRole = role === 'employee' ? activeBugs.filter((bug) => taskById(bug.taskId)?.ownerId === employeeId) : activeBugs;
   const pendingForRole = role === 'employee' ? pending.filter((entry) => entry.employeeId === employeeId) : pending;
   const reportButton = role === 'finance' ? '' : `<button class="button ghost" data-action="report-defect">${buttonIcon('bug')} Report defect</button>`;
-  return `${pageHead(`QUALITY OPERATIONS · ${monthLabel(monthKey()).toUpperCase()} CYCLE`, lead, role === 'employee' ? 'Your work, rework, and payslip estimates in one place.' : 'Every delivered module carries its full story: ownership, defects, hours, and payroll impact.', `${reportButton}${['team-lead','admin'].includes(role) ? `<button class="button primary" data-action="new-task">${buttonIcon('plus')} Assign task</button>` : role === 'employee' ? `<button class="button primary" data-action="log-time">${buttonIcon('clock')} Log hours</button>` : ''}`)}
-    <section class="hero"><div class="hero-copy"><div class="hero-kicker">One record. From delivery to close.</div><h2>${role === 'employee' ? 'Your delivery, with the whole story attached.' : 'Make quality visible. Keep every calculation explainable.'}</h2><p>Defects return to the task that shipped. Corrective time stays separate, gets reviewed, and reaches payroll with the reason and rate in view.</p><div class="hero-actions"><button class="button primary" data-action="navigate" data-view="tasks">Open task board ${buttonIcon('arrow')}</button><button class="button ghost" data-action="navigate" data-view="insights">Explore quality signals</button></div></div><div class="hero-art" aria-hidden="true"><div class="hero-ring"><span class="hero-ring-center">${buttonIcon('mark')}</span><span class="hero-spark one"></span><span class="hero-spark two"></span></div><span class="motion-chip chip-one">01 · SHIPPED</span><span class="motion-chip chip-two">02 · REOPENED</span><span class="motion-chip chip-three">03 · REVIEWED</span><span class="hero-label">Trace · review · resolve</span></div></section>
+  return `${pageHead(`QUALITY OPERATIONS · ${monthLabel(monthKey()).toUpperCase()} CYCLE`, lead, intro, `${reportButton}${['team-lead','admin'].includes(role) ? `<button class="button primary" data-action="new-task">${buttonIcon('plus')} Assign task</button>` : role === 'employee' ? `<button class="button primary" data-action="log-time">${buttonIcon('clock')} Log hours</button>` : ''}`)}
+    <section class="hero"><div class="hero-copy"><div class="hero-kicker">${esc(roleNames[role])} home · one record from delivery to close</div><h2>${esc(home.title)}</h2><p>${esc(home.copy)}</p><div class="hero-actions"><button class="button primary" data-action="navigate" data-view="${home.primary[1]}">${esc(home.primary[0])} ${buttonIcon('arrow')}</button><button class="button ghost" data-action="navigate" data-view="${home.secondary[1]}">${esc(home.secondary[0])}</button></div></div><div class="hero-art" aria-hidden="true"><div class="hero-ring"><span class="hero-ring-center">${buttonIcon('mark')}</span><span class="hero-spark one"></span><span class="hero-spark two"></span></div><span class="motion-chip chip-one">01 · SHIPPED</span><span class="motion-chip chip-two">02 · REOPENED</span><span class="motion-chip chip-three">03 · REVIEWED</span><span class="hero-label">Trace · review · resolve</span></div></section>
     <section class="stat-grid">
       <article class="stat-card"><div class="stat-top"><span>Tracked deliveries</span><span class="stat-icon">${buttonIcon('tasks')}</span></div><div class="stat-value">${tasks.length.toString().padStart(2, '0')}</div><div class="stat-foot">${tasks.filter((task) => !['Closed','Completed'].includes(task.status)).length} in active workflow</div></article>
       <article class="stat-card"><div class="stat-top"><span>Reopen rate</span><span class="stat-icon coral">${buttonIcon('bug')}</span></div><div class="stat-value">${reopenRate}%</div><div class="stat-foot">${openBugsForRole.length} open linked defect${openBugsForRole.length === 1 ? '' : 's'}</div></article>
@@ -235,7 +275,7 @@ function overview() {
       <article class="stat-card"><div class="stat-top"><span>${monthLabel(payroll.month)} estimate</span><span class="stat-icon green">${buttonIcon('payroll')}</span></div><div class="stat-value" style="font-size:21px">${money(role === 'employee' ? payroll.rows.find((row) => row.employeeId === employeeId)?.deduction : payroll.totalDeduction)}</div><div class="stat-foot">${payroll.finalized ? 'Finalized payroll' : 'Only approved original-delivery hours'}</div></article>
     </section>
     <section class="dashboard-grid"><div class="stack"><div class="panel"><div class="panel-head"><div><h2 class="panel-title">${role === 'employee' ? 'Your task pulse' : 'Tasks in motion'}</h2><p class="panel-note">Committed delivery dates and their current lifecycle state.</p></div><button class="button text" data-action="navigate" data-view="tasks">View board ${buttonIcon('arrow')}</button></div>${recentTasks.length ? `<div class="task-list">${recentTasks.map((task) => `<div class="task-row"><div class="task-main"><span class="task-mark ${taskBadgeColor(task.status)}">${esc(task.id)}</span><div style="min-width:0"><div class="task-title">${esc(task.title)}</div><div class="task-sub">${esc(task.module)} · ${esc(task.project)}</div></div></div><div>${taskStatus(task.status)}</div><span class="task-date">${shortDate(task.committedDate)}</span><button class="arrow-link" data-action="task-details" data-id="${esc(task.id)}" aria-label="Open ${esc(task.id)}">›</button></div>`).join('')}</div>` : '<div class="empty-state">No tasks are assigned to this profile yet.</div>'}</div>
-        <div class="panel"><div class="panel-head"><div><h2 class="panel-title">Recent activity</h2><p class="panel-note">A timestamped record for every meaningful change.</p></div><button class="button text" data-action="navigate" data-view="audit">Full audit trail ${buttonIcon('arrow')}</button></div>${activityList(state.audit.slice(0, 4))}</div>
+        <div class="panel"><div class="panel-head"><div><h2 class="panel-title">${role === 'employee' ? 'Your recent activity' : role === 'finance' ? 'Your finance activity' : 'Recent activity'}</h2><p class="panel-note">A timestamped record for every meaningful change.</p></div>${['team-lead','finance','admin'].includes(role) ? `<button class="button text" data-action="navigate" data-view="audit">Full audit trail ${buttonIcon('arrow')}</button>` : ''}</div>${activityList(recentActivity)}</div>
       </div><div class="stack"><div class="signal-card"><div class="signal-label">${buttonIcon('sparkle')} Explainable quality signal</div><h3>${signalHeadline()}</h3><p>${signalSummary()}</p><div class="signal-footer"><span>Rules + linked records · no payroll inference</span><span class="signal-score">${state.bugs.length} records</span></div></div>
         <div class="panel"><div class="panel-head"><div><h2 class="panel-title">Delivery health</h2><p class="panel-note">Reopened tasks in the current workspace.</p></div><span class="panel-aux">All time</span></div><div class="chart-row">${donut(reopenRate)}<div class="legend-list"><div class="legend-item"><span class="legend-key"><i class="legend-dot"></i>Reopened</span><span class="legend-value">${reopenedIds.size}</span></div><div class="legend-item"><span class="legend-key"><i class="legend-dot muted"></i>Delivered once</span><span class="legend-value">${Math.max(0, completed - reopenedIds.size)}</span></div><div class="legend-item"><span class="legend-key"><i class="legend-dot" style="background:#c8f169"></i>Awaiting review</span><span class="legend-value">${pending.length}</span></div></div></div></div>
         <div class="panel"><div class="panel-head"><div><h2 class="panel-title">Heads up</h2><p class="panel-note">Notices and next steps.</p></div><button class="icon-button" data-action="notifications" aria-label="Open notices">${buttonIcon('bell')}</button></div>${ownNotices.length ? `<div class="activity-list">${ownNotices.slice(0, 3).map((notice) => `<div class="activity-row"><span class="activity-marker">${buttonIcon(notice.type === 'payroll' ? 'payroll' : 'tasks')}</span><div class="activity-copy"><strong>${esc(notice.title)}</strong><div>${esc(notice.message)}</div><div class="activity-time">${timeAgo(notice.at)}</div></div></div>`).join('')}</div>` : '<div class="empty-state">No notices yet.</div>'}</div>
@@ -332,12 +372,21 @@ function payrollPage() {
   const blockers = payrollBlockers(payroll);
   const blockerCount = blockers.pendingHours.length + blockers.causeReview.length;
   const rows = role === 'employee' ? payroll.rows.filter((row) => row.employeeId === employeeId) : payroll.rows;
+  const snapshotEntries = payroll.finalized && Array.isArray(payroll.inputRecords) ? payroll.inputRecords : null;
+  const sourceEntries = (snapshotEntries || state.timeEntries.filter((entry) => entry.type === 'corrective' && entry.date.startsWith(payroll.sourceMonth))).filter((entry) => role !== 'employee' || entry.employeeId === employeeId);
+  const snapshotBugs = payroll.finalized ? payroll.sourceSummary?.defectsFound : null;
+  const sourceBugs = (snapshotBugs || state.bugs.filter((bug) => bug.foundAt?.startsWith(payroll.sourceMonth)).map((bug) => ({ bugId: bug.id, ownerId: taskById(bug.taskId)?.ownerId, module: taskById(bug.taskId)?.module }))).filter((bug) => role !== 'employee' || bug.ownerId === employeeId);
+  const sourceHours = sourceEntries.reduce((sum, entry) => sum + Number(entry.hours), 0);
+  const sourceEligible = sourceEntries.filter((entry) => entry.status === 'approved' && (entry.cause ?? bugById(entry.bugId)?.cause) === 'original').reduce((sum, entry) => sum + Number(entry.hours), 0);
+  const sourceModules = new Set(sourceBugs.map((bug) => bug.module).filter(Boolean)).size;
+  const sourceDeduction = role === 'employee' ? rows[0]?.deduction || 0 : payroll.totalDeduction;
   const finalizable = ['finance','admin'].includes(role);
   const action = finalizable ? `<button class="button ${payroll.finalized || blockerCount ? 'ghost' : 'primary'}" data-action="finalize-payroll" ${payroll.finalized || blockerCount ? 'disabled' : ''}>${buttonIcon('shield')} ${payroll.finalized ? 'Payroll finalized' : blockerCount ? 'Reviews required' : 'Finalize payroll'}</button>` : '';
   const picker = `<select class="filter-select" id="payrollMonth" aria-label="Payroll month">${[shiftMonth(monthKey(), -1), monthKey(), shiftMonth(monthKey(), 1), shiftMonth(monthKey(), 2)].map((item) => `<option value="${item}" ${item === payroll.month ? 'selected' : ''}>${esc(monthLabel(item))}</option>`).join('')}</select>`;
   const totalDeduction = role === 'employee' ? rows[0]?.deduction || 0 : payroll.totalDeduction;
   return `${pageHead('TRANSPARENT BY DESIGN', role === 'employee' ? 'Your payslip preview' : 'Payroll preview', `Approved corrective hours from ${monthLabel(payroll.sourceMonth)} are calculated for ${monthLabel(payroll.month)}.`, `${picker}${action}`)}
     <section class="payroll-hero"><div class="payroll-hero-copy"><div class="eyebrow">${payroll.finalized ? 'FINALIZED PAYROLL' : 'NEXT PAYROLL ESTIMATE'}</div><h2>${esc(monthLabel(payroll.month))}</h2><p>Source period · ${esc(monthLabel(payroll.sourceMonth))}<br/>${payroll.finalized ? `Finalized by ${esc(payroll.finalizedBy)} · ${shortDate(payroll.finalizedAt)}${payroll.finalizedReason ? `<br/>${esc(payroll.finalizedReason)}` : ''}` : 'Preview recalculates when an eligible hour is approved or a cause is reviewed.'}</p></div><div class="payroll-total"><span>${role === 'employee' ? 'Estimated deduction' : 'Total rework deduction'}</span><strong>${money(totalDeduction)}</strong></div></section>
+    <div class="monthly-summary"><div class="monthly-summary-heading"><strong>${esc(monthLabel(payroll.sourceMonth))} rework summary</strong><span>Source period · before ${esc(monthLabel(payroll.month))} payroll</span></div><div class="metric-strip" style="grid-template-columns:repeat(auto-fit,minmax(115px,1fr))"><div class="mini-metric"><span>Defects reported</span><strong>${sourceBugs.length}</strong><small>${sourceModules} affected module${sourceModules === 1 ? '' : 's'}</small></div><div class="mini-metric"><span>Corrective hours</span><strong>${sourceHours.toFixed(2)}h</strong><small>all statuses, separate from regular work</small></div><div class="mini-metric"><span>Payroll eligible</span><strong>${sourceEligible.toFixed(2)}h</strong><small>approved and original-cause confirmed</small></div><div class="mini-metric"><span>Estimated adjustment</span><strong style="font-size:15px">${money(sourceDeduction)}</strong><small>next-month total · approved hours only</small></div></div></div>
     ${finalizable && blockerCount ? `<div class="inline-note warning" style="margin-top:12px">${blockers.pendingHours.length} corrective hour entr${blockers.pendingHours.length === 1 ? 'y is' : 'ies are'} awaiting review and ${blockers.causeReview.length} approved entr${blockers.causeReview.length === 1 ? 'y has' : 'ies have'} an unresolved cause for ${esc(monthLabel(payroll.sourceMonth))}. Resolve these reviews before payroll can be finalized.</div>` : ''}
     <div style="height:12px"></div>
     <div class="inline-note" style="margin-bottom:13px">Calculation: approved corrective hours × employee hourly rate. Daily rates are converted to an hourly equivalent using the employee’s configured workday. External causes and pending or rejected hours are excluded. The deduction cannot exceed gross monthly salary.</div>
@@ -348,7 +397,23 @@ function payrollPage() {
 }
 
 function payslip(row, payroll) {
-  return `<article class="panel" style="padding:14px"><div class="panel-head"><div><h3 class="panel-title">${esc(monthLabel(payroll.month))} payslip</h3><p class="panel-note">${row.hours.toFixed(2)} approved corrective hours · ${esc(monthLabel(payroll.sourceMonth))} source work</p></div><span class="status ${payroll.finalized ? 'approved' : 'pending'}">${payroll.finalized ? 'Finalized' : 'Preview'}</span></div><div class="stack" style="gap:8px"><div class="payslip-card"><div><div class="payslip-title">Gross monthly salary</div><div class="payslip-sub">Before rework adjustments</div></div><div class="payslip-amount">${money(row.gross)}</div></div>${row.lines.length ? row.lines.map((line) => `<div class="payslip-card"><div><div class="payslip-title">${line.hours.toFixed(2)}h corrective · ${esc(line.module)}</div><div class="payslip-sub">${esc(line.taskId)} / ${esc(line.bugId)} · ${money(row.rate)}/hour equivalent · ${money(line.amount)} calculated</div></div><div class="payslip-amount" style="color:#b4533d">−${money(line.appliedAmount ?? line.amount)}<small>applied</small></div></div>`).join('') : '<div class="inline-note">No eligible original-delivery hours in the source month.</div>'}${row.capApplied ? `<div class="inline-note warning">The calculated amount ${money(row.requestedDeduction)} exceeds gross salary; the applied deduction is capped at ${money(row.gross)}.</div>` : ''}<div class="payslip-card" style="border-color:#dfe8d2;background:#fbfdf6"><div><div class="payslip-title">Net salary</div><div class="payslip-sub">Gross minus eligible, approved corrective hours</div></div><div class="payslip-amount">${money(row.net)}</div></div></div></article>`;
+  return `<article class="panel" style="padding:14px"><div class="panel-head"><div><h3 class="panel-title">${esc(monthLabel(payroll.month))} payslip</h3><p class="panel-note">${row.hours.toFixed(2)} approved corrective hours · ${esc(monthLabel(payroll.sourceMonth))} source work</p></div><span class="status ${payroll.finalized ? 'approved' : 'pending'}">${payroll.finalized ? 'Finalized' : 'Preview'}</span></div><div class="stack" style="gap:8px"><div class="payslip-card"><div><div class="payslip-title">Gross monthly salary</div><div class="payslip-sub">Before rework adjustments</div></div><div class="payslip-amount">${money(row.gross)}</div></div>${row.lines.length ? row.lines.map((line) => `<div class="payslip-card"><div><div class="payslip-title">${line.hours.toFixed(2)}h corrective · ${esc(line.module)}</div><div class="payslip-sub">${esc(line.taskId)} / ${esc(line.bugId)} · ${moneyRate(row.rate)}/hour equivalent · ${money(line.amount)} calculated</div></div><div class="payslip-amount" style="color:#b4533d">−${money(line.appliedAmount ?? line.amount)}<small>applied</small></div></div>`).join('') : '<div class="inline-note">No eligible original-delivery hours in the source month.</div>'}${row.capApplied ? `<div class="inline-note warning">The calculated amount ${money(row.requestedDeduction)} exceeds gross salary; the applied deduction is capped at ${money(row.gross)}.</div>` : ''}<div class="payslip-card" style="border-color:#dfe8d2;background:#fbfdf6"><div><div class="payslip-title">Net salary</div><div class="payslip-sub">Gross minus eligible, approved corrective hours</div></div><div class="payslip-amount">${money(row.net)}</div></div></div></article>`;
+}
+
+function qualityGroups(groupKey, labels = {}) {
+  const groups = new Map();
+  const get = (key) => {
+    if (!groups.has(key)) groups.set(key, { key, label: labels[key] || key || 'Unknown', delivered: new Set(), reopened: new Set(), defects: 0, hours: 0, fixedDays: 0, fixedCount: 0 });
+    return groups.get(key);
+  };
+  state.tasks.forEach((task) => { const item = get(groupKey(task)); if (task.completedAt) item.delivered.add(task.id); });
+  state.bugs.forEach((bug) => {
+    const task = taskById(bug.taskId); const item = get(task ? groupKey(task) : 'Unknown');
+    item.defects++; item.reopened.add(bug.taskId);
+    if (bug.closedAt && bug.foundAt) { item.fixedDays += Math.max(0, new Date(bug.closedAt) - new Date(bug.foundAt)) / 86400000; item.fixedCount++; }
+    state.timeEntries.filter((entry) => entry.bugId === bug.id && entry.type === 'corrective').forEach((entry) => { item.hours += Number(entry.hours); });
+  });
+  return [...groups.values()].map((item) => ({ ...item, reopenRate: item.delivered.size ? Math.round(item.reopened.size / item.delivered.size * 100) : 0, avgDays: item.fixedCount ? item.fixedDays / item.fixedCount : null })).sort((a,b) => b.hours-a.hours || b.defects-a.defects);
 }
 
 function qualityPage() {
@@ -356,14 +421,14 @@ function qualityPage() {
   const reopenRate = complete ? Math.round(new Set(state.bugs.map((bug) => bug.taskId)).size / complete * 100) : 0;
   const fixed = state.bugs.filter((bug) => bug.closedAt && bug.foundAt);
   const avgDays = fixed.length ? fixed.reduce((sum, bug) => sum + Math.max(0, new Date(bug.closedAt) - new Date(bug.foundAt)) / 86400000, 0) / fixed.length : 0;
-  const moduleMap = new Map();
-  state.bugs.forEach((bug) => { const module = taskById(bug.taskId)?.module || 'Unknown'; const item = moduleMap.get(module) || { module, defects: 0, hours: 0, external: 0 }; item.defects++; if (bug.cause === 'external') item.external++; state.timeEntries.filter((entry) => entry.bugId === bug.id && entry.type === 'corrective').forEach((entry) => item.hours += entry.hours); moduleMap.set(module, item); });
-  const modules = [...moduleMap.values()].sort((a,b) => b.hours - a.hours || b.defects-a.defects);
-  const employees = state.employees.map((employee) => { const entries = state.timeEntries.filter((entry) => entry.employeeId === employee.id && entry.type === 'corrective'); return { name: employee.name, hours: entries.reduce((sum, entry) => sum + entry.hours, 0), approved: entries.filter((entry) => entry.status === 'approved').reduce((sum, entry) => sum + entry.hours, 0) }; }).sort((a,b) => b.hours-a.hours);
+  const modules = qualityGroups((task) => task.module);
+  const projects = qualityGroups((task) => task.project);
+  const employees = qualityGroups((task) => task.ownerId, Object.fromEntries(state.employees.map((employee) => [employee.id, employee.name])));
   const pairs = signalPairs();
   return `${pageHead('EVIDENCE FIRST', 'Quality signals', 'Deterministic metrics and explainable suggestions help find recurring problems without deciding fault or pay.')}<div class="metric-strip"><div class="mini-metric"><span>Reopen rate</span><strong>${reopenRate}%</strong><small>${new Set(state.bugs.map((bug) => bug.taskId)).size} linked tasks / ${complete} delivered</small></div><div class="mini-metric"><span>Average fix time</span><strong>${avgDays.toFixed(1)}d</strong><small>${fixed.length} closed defect${fixed.length === 1 ? '' : 's'} with timestamps</small></div><div class="mini-metric"><span>Corrective effort</span><strong>${state.timeEntries.filter((entry) => entry.type === 'corrective').reduce((sum, entry) => sum + entry.hours, 0).toFixed(1)}h</strong><small>all linked defect records</small></div></div>
-    <div class="dashboard-grid"><div class="stack"><div class="panel"><div class="panel-head"><div><h2 class="panel-title">Rework by module</h2><p class="panel-note">Total corrective time, including pending and externally caused entries.</p></div><span class="panel-aux">Hours</span></div>${modules.length ? `<div class="bar-list">${modules.map((item) => `<div class="bar-item"><span class="bar-name">${esc(item.module)}</span><div class="bar-track"><div class="bar-fill coral" style="width:${Math.max(2, item.hours / Math.max(...modules.map((x) => x.hours), 1) * 100)}%"></div></div><span class="bar-value">${item.hours.toFixed(1)}h</span></div>`).join('')}</div>` : '<div class="empty-state">No quality records yet.</div>'}</div>
-      <div class="panel"><div class="panel-head"><div><h2 class="panel-title">Effort by employee</h2><p class="panel-note">Shows logged corrective hours. This is operational context, not a performance score.</p></div></div><div class="bar-list">${employees.map((item) => `<div class="bar-item"><span class="bar-name">${esc(item.name)}</span><div class="bar-track"><div class="bar-fill" style="width:${Math.max(0, item.hours / Math.max(...employees.map((x) => x.hours), 1) * 100)}%"></div></div><span class="bar-value">${item.hours.toFixed(1)}h</span></div>`).join('')}</div></div>
+    <div class="dashboard-grid"><div class="stack"><div class="panel"><div class="panel-head"><div><h2 class="panel-title">Quality by module</h2><p class="panel-note">Reopened-task rate, verified fix time, defects, and logged corrective effort.</p></div><span class="panel-aux">All recorded cycles</span></div>${modules.length ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>Module</th><th>Reopen rate</th><th>Avg fix time</th><th>Defects</th><th>Hours</th></tr></thead><tbody>${modules.map((item) => `<tr><td class="cell-strong">${esc(item.label)}</td><td>${item.reopenRate}%</td><td>${item.avgDays == null ? '—' : `${item.avgDays.toFixed(1)}d`}</td><td>${item.defects}</td><td>${item.hours.toFixed(2)}h</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty-state">No module records yet.</div>'}</div>
+      <div class="panel"><div class="panel-head"><div><h2 class="panel-title">Quality by original owner</h2><p class="panel-note">Operational context for review; these figures never determine fault or pay.</p></div></div>${employees.length ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>Employee</th><th>Reopen rate</th><th>Avg fix time</th><th>Defects</th><th>Hours</th></tr></thead><tbody>${employees.map((item) => `<tr><td class="cell-strong">${esc(item.label)}</td><td>${item.reopenRate}%</td><td>${item.avgDays == null ? '—' : `${item.avgDays.toFixed(1)}d`}</td><td>${item.defects}</td><td>${item.hours.toFixed(2)}h</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty-state">No employee quality records yet.</div>'}</div>
+      <div class="panel"><div class="panel-head"><div><h2 class="panel-title">Quality by project</h2><p class="panel-note">Unique reopened tasks and linked defect data by project.</p></div></div>${projects.length ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>Project</th><th>Reopen rate</th><th>Avg fix time</th><th>Defects</th><th>Rework hours</th></tr></thead><tbody>${projects.map((item) => `<tr><td class="cell-strong">${esc(item.label)}</td><td>${item.reopenRate}%</td><td>${item.avgDays == null ? '—' : `${item.avgDays.toFixed(1)}d`}</td><td>${item.defects}</td><td>${item.hours.toFixed(2)}h</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty-state">No project-linked quality records yet.</div>'}</div>
     </div><div class="stack"><div class="panel"><div class="panel-head"><div><h2 class="panel-title">Explainable pattern suggestions</h2><p class="panel-note">Token overlap across defect titles and descriptions. Suggestions require a human review.</p></div><span class="panel-aux">Similarity ≥ 22%</span></div>${pairs.length ? pairs.slice(0,5).map((pair) => `<div class="insight-card" style="margin-bottom:8px"><span class="insight-icon">${buttonIcon('sparkle')}</span><div><h3>${esc(pair.first.id)} ↔ ${esc(pair.second.id)} · ${Math.round(pair.score*100)}% overlap</h3><p>Shared terms: ${pair.common.map(esc).join(', ')}. ${esc(pair.first.title)} / ${esc(pair.second.title)}</p><div class="insight-meta">TEXT SIMILARITY · REVIEW REQUIRED · NO AUTOMATIC ACTION</div></div></div>`).join('') : `<div class="insight-card"><span class="insight-icon">${buttonIcon('check')}</span><div><h3>No candidate pair passed the threshold.</h3><p>New suggestions appear when linked defect descriptions share at least two meaningful terms and a 22% token overlap.</p><div class="insight-meta">SUGGESTION ONLY · DOES NOT AFFECT PAYROLL</div></div></div>`}</div>
       <div class="panel"><div class="panel-head"><div><h2 class="panel-title">Method & fairness</h2><p class="panel-note">How the analysis behaves.</p></div></div><div class="stack" style="gap:9px"><div class="cause-card"><strong>Exact lifecycle metrics</strong><p>Reopen rate uses unique delivered task IDs with defects ÷ delivered tasks. Average fix time uses the found and verified close timestamps.</p></div><div class="cause-card"><strong>Conservative similarity</strong><p>Lowercase token overlap ignores common words and requires two shared terms. A manager decides whether two defects are related.</p></div><div class="cause-card"><strong>Payroll remains deterministic</strong><p>Only approved hours whose linked defect cause is confirmed as original delivery are calculated. Similarity scores never affect pay.</p></div></div></div>
     </div></div>`;
@@ -401,9 +466,14 @@ function content() {
 
 function render() {
   if (!state) return;
+  if (!signedIn) {
+    $('#app').className = 'login-root';
+    $('#app').innerHTML = roleChooser();
+    return;
+  }
   const activeEmp = role === 'employee' ? currentEmployee() : { name: actorName(), initials: initials(actorName()) };
   $('#app').className = 'app-frame';
-  $('#app').innerHTML = `<aside class="sidebar" id="sidebar"><div class="brand"><span class="brand-mark">${buttonIcon('mark')}</span><span><span class="brand-name">REWORK LEDGER</span><span class="brand-sub">Quality operations</span></span></div><div class="side-label">Workspace</div><nav class="sidebar-nav">${navMarkup()}</nav><div class="side-spacer"></div><div class="side-status"><div class="side-status-top"><span class="live-dot"></span><span>Local database · live</span></div><p>Saved on every action. Connected tabs update together.</p></div><div class="side-user">${avatar(activeEmp, role === 'employee' ? 'aqua' : 'lime')}<div class="side-user-copy"><div class="side-user-name">${esc(activeEmp?.name || actorName())}</div><div class="side-user-role">${esc(roleNames[role])} · role preview</div></div></div></aside><main class="main-panel">${topbar()}<div class="content">${content()}</div></main><div class="toast-region" aria-live="polite"></div>${modal}`;
+  $('#app').innerHTML = `<aside class="sidebar" id="sidebar"><div class="brand"><span class="brand-mark">${buttonIcon('mark')}</span><span><span class="brand-name">REWORK LEDGER</span><span class="brand-sub">Quality operations</span></span></div><div class="side-label">Workspace</div><nav class="sidebar-nav">${navMarkup()}</nav><div class="side-spacer"></div><div class="side-status"><div class="side-status-top"><span class="live-dot"></span><span>Local database · live</span></div><p>Saved on every action. Connected tabs update together.</p></div><div class="side-user">${avatar(activeEmp, role === 'employee' ? 'aqua' : 'lime')}<div class="side-user-copy"><div class="side-user-name">${esc(activeEmp?.name || actorName())}</div><div class="side-user-role">${esc(roleNames[role])} · demo workspace</div></div></div></aside><main class="main-panel">${topbar()}<div class="content">${content()}</div></main><div class="toast-region" aria-live="polite"></div>${modal}`;
   if (taskSearch && $('#taskSearch')) { const input = $('#taskSearch'); input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
 }
 
@@ -475,7 +545,7 @@ function showRateModal(employeeKey) {
 
 function showDetailsModal(employeeKey) {
   const payroll = computePayroll(); const row = payroll.rows.find((item) => item.employeeId === employeeKey); if (!row) return;
-  modal = modalShell(`${row.employee} · linked deductions`, `${monthLabel(payroll.month)} payroll · ${monthLabel(payroll.sourceMonth)} rework`, row.lines.length ? `<div class="stack" style="gap:8px">${row.lines.map((line) => `<div class="payslip-card"><div><div class="payslip-title">${esc(line.module)} · ${esc(line.taskId)}</div><div class="payslip-sub">${esc(line.bugId)} · ${line.hours.toFixed(2)}h × ${money(row.rate)}/h equivalent</div></div><div class="payslip-amount">${money(line.appliedAmount ?? line.amount)}</div></div>`).join('')}${row.capApplied ? `<div class="inline-note warning">Requested amount ${money(row.requestedDeduction)} is capped at gross salary ${money(row.gross)}.</div>` : ''}</div>` : '<div class="empty-state">No eligible original-delivery hours for this payroll month.</div>', { buttonLabel: 'Close' }); render();
+  modal = modalShell(`${row.employee} · linked deductions`, `${monthLabel(payroll.month)} payroll · ${monthLabel(payroll.sourceMonth)} rework`, row.lines.length ? `<div class="stack" style="gap:8px">${row.lines.map((line) => `<div class="payslip-card"><div><div class="payslip-title">${esc(line.module)} · ${esc(line.taskId)}</div><div class="payslip-sub">${esc(line.bugId)} · ${line.hours.toFixed(2)}h × ${moneyRate(row.rate)}/h equivalent</div></div><div class="payslip-amount">${money(line.appliedAmount ?? line.amount)}</div></div>`).join('')}${row.capApplied ? `<div class="inline-note warning">Requested amount ${money(row.requestedDeduction)} is capped at gross salary ${money(row.gross)}.</div>` : ''}</div>` : '<div class="empty-state">No eligible original-delivery hours for this payroll month.</div>', { buttonLabel: 'Close' }); render();
 }
 
 function showFinalizePayrollModal() {
@@ -506,6 +576,9 @@ function value(form, name) { const item = new FormData(form).get(name); return i
 document.addEventListener('click', async (event) => {
   const target = event.target.closest('[data-action]'); if (!target) return;
   const action = target.dataset.action;
+  if (action === 'select-role') { role = target.dataset.role; if (role === 'employee' && !state.employees.some((item) => item.id === employeeId && item.active)) employeeId = state.employees.find((item) => item.active)?.id || ''; render(); return; }
+  if (action === 'enter-workspace') { if (role === 'employee') { employeeId = $('#loginEmployee')?.value || employeeId; if (!state.employees.some((item) => item.id === employeeId && item.active)) return; localStorage.setItem('rl-employee', employeeId); } localStorage.setItem('rl-role', role); sessionStorage.setItem('rl-signed-in', 'true'); signedIn = true; view = 'overview'; modal = ''; render(); return; }
+  if (action === 'switch-role') { sessionStorage.removeItem('rl-signed-in'); signedIn = false; modal = ''; view = 'overview'; render(); return; }
   if (action === 'navigate') { view = target.dataset.view; modal = ''; if (!visibleNav().some((item) => item.id === view)) view = 'overview'; render(); if (innerWidth <= 820) $('#sidebar')?.classList.remove('open'); return; }
   if (action === 'sidebar-toggle') { $('#sidebar')?.classList.toggle('open'); return; }
   if (action === 'new-task') { if (['team-lead','admin'].includes(role)) showTaskForm(); return; }
@@ -545,12 +618,7 @@ document.addEventListener('submit', async (event) => {
 });
 
 document.addEventListener('change', async (event) => {
-  if (event.target.id === 'roleSwitcher') {
-    const chosen = event.target.value;
-    if (chosen.startsWith('employee:')) { role = 'employee'; employeeId = chosen.split(':')[1]; }
-    else role = chosen;
-    localStorage.setItem('rl-role', role); localStorage.setItem('rl-employee', employeeId); view = 'overview'; modal = ''; render(); return;
-  }
+  if (event.target.id === 'loginEmployee') { employeeId = event.target.value; return; }
   if (event.target.id === 'taskStatus') { selectedTaskStatus = event.target.value; render(); return; }
   if (event.target.id === 'payrollMonth') { selectedPayrollMonth = event.target.value; render(); return; }
   if (event.target.id === 'rateBasis') {

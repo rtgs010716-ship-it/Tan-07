@@ -16,6 +16,7 @@ Build a web application from the supplied problem statement. Treat the problem s
 
 ## Roles and views
 
+- Start with an accessible role chooser and open a role-specific home page with shortcuts for that role's tasks. If no identity provider is configured, call it a demo role chooser and do not imply it authenticates a person.
 - Employee: assigned work, defect reporting, separate time logging, notices, and personal payslip.
 - Team lead or manager: assignment, defect cause review, time approval, fix verification, audit history, and quality reports.
 - Finance: editable pay rates, monthly deduction preview, transparent payslip review, and payroll finalization.
@@ -31,6 +32,7 @@ Build a web application from the supplied problem statement. Treat the problem s
 ## Data, experience, and delivery
 
 - Save each accepted action immediately to a persistent real-time database and publish updates to connected sessions. Preserve recoverable audit history.
+- Store the pay inputs, source records, cause and hour-review reasons, and calculation version with every finalized payroll snapshot so the result can be reproduced.
 - Build complete responsive pages for every role, accessible forms, helpful validation, clear empty/loading/error states, and subtle motion that respects reduced-motion settings.
 - Use fictional seed data only. Keep keys and secrets out of source control. Document local setup, database configuration, access rules, backup, and production deployment.
 - Before release, manually verify every lifecycle transition, fairness override, pending/approved/rejected hour, next-month calculation, salary cap, notice, and audit entry. Document limitations and never claim the demo is production-secure until authentication and server-enforced role rules are enabled.

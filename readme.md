@@ -13,20 +13,20 @@ The app uses Node.js built-in modules, so there is no dependency install step. I
 
 ## Demo roles
 
-Use the role selector in the header to preview each workspace:
+The app opens with a role chooser. Select a role to open its role-specific home page. Use **Switch role** in the header to return to the chooser:
 
 - **Employee**: report a defect, log regular or corrective hours, review notices, and see a payslip preview.
 - **Team lead**: assign tasks, move reopened tasks into fix, review corrective hours, classify defect cause with a written reason, verify fixes, and view quality signals and the audit trail.
 - **Finance**: edit rates, review monthly calculations, inspect linked payslip lines, and finalize payroll.
 - **Administrator**: preview all operational controls.
 
-The role selector is a demonstration convenience, not authentication. The local server persists data but does not authenticate people or enforce production access controls. Do not put real employee or payroll data in this demo.
+The role chooser is a demonstration convenience, not authentication. It has no passwords or real accounts. The local server persists data and publishes live updates, but does not authenticate people or protect production access controls. Do not put real employee or payroll data in this demo.
 
 ## Data and live updates
 
 The Node server saves the workspace to `data/workspace.json` after each accepted action. It sends Server-Sent Events to open tabs, which reload the saved state immediately when another action changes the database. A failed write rolls the action back in memory; malformed saved data stops startup instead of silently replacing it with demo data. Regular time entries and corrective hours have different types. Payroll counts only approved corrective hours whose linked defect is confirmed as caused by the original delivery; an external cause, pending hours, and rejected hours are excluded. The next payroll month is computed from the month in which the rework occurred.
 
-The calculation is `min(gross monthly salary, approved eligible hours × hourly rate)`. A daily rate uses the configured eight-hour workday to find an hourly equivalent. Amounts are rounded to paise before display; the demo payslip displays whole rupees. Finalized payroll stores a snapshot, and the audit history records the actor, decision, time, and reason.
+The calculation is `min(gross monthly salary, approved eligible hours × hourly equivalent)`. A daily rate uses the employee's configured workday. The server rounds each time entry to paise, caps deductions at gross pay, and stores the source records, rate basis, and calculation version with finalized payroll. The UI shows paise when a value has a fractional rupee. The audit history records the actor, decision, time, and reason.
 
 ## Reset demo data
 
@@ -34,7 +34,7 @@ Stop the server, remove `data/workspace.json`, and start it again. The server wi
 
 ## Before real payroll use
 
-Add authenticated employee accounts and server-enforced role permissions, secure the database and backups, define the applicable pay policy with your finance and HR teams, and review local employment and payroll requirements. The demo role switcher is not an access control system. Keep payroll decisions reviewable and make no deduction without the approved hours, linked defect, cause decision, and recorded reason.
+Add authenticated employee accounts and identity-backed server permissions, secure the database and backups, define the applicable pay policy with your finance and HR teams, and review local employment and payroll requirements. The demo role chooser is not an access control system. Keep payroll decisions reviewable and make no deduction without the approved hours, linked defect, cause decision, and recorded reason.
 
 ## Files
 

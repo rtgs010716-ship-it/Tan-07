@@ -17,7 +17,9 @@ const now = new Date();
 const today = now.toISOString().slice(0, 10);
 const month = today.slice(0, 7);
 const ago = (days) => new Date(now.getTime() - days * 86400000).toISOString();
+function nextMonthKey(sourceMonth) { const [year, monthNumber] = sourceMonth.split('-').map(Number); return new Date(Date.UTC(year, monthNumber, 1)).toISOString().slice(0, 7); }
 const taskHistory = (status, date, by, note) => ({ id: randomUUID(), status, at: date, by, note });
+function uniqueId(prefix, records) { let id; do { id = `${prefix}-${randomUUID().slice(0, 8).toUpperCase()}`; } while (records.some((item) => item.id === id)); return id; }
 
 function seed() {
   const employees = [
@@ -113,23 +115,39 @@ function monthlyRate(employee) {
   const hoursPerDay = employee.hoursPerDay || 8;
   return employee.payBasis === 'daily' ? (employee.dailyRate || employee.hourlyRate * hoursPerDay) / hoursPerDay : (employee.hourlyRate || employee.dailyRate / hoursPerDay);
 }
+function correctiveAmountPaise(entry, employee) {
+  const quarterHours = Math.round(Number(entry.hours) * 4);
+  const hoursPerDay = Number(employee.hoursPerDay || 8);
+  const sourceRate = employee.payBasis === 'daily' ? Number(employee.dailyRate || employee.hourlyRate * hoursPerDay) : Number(employee.hourlyRate || employee.dailyRate / hoursPerDay);
+  const ratePaise = Math.round(sourceRate * 100);
+  return Math.round(quarterHours * ratePaise / (4 * (employee.payBasis === 'daily' ? hoursPerDay : 1)));
+}
 function payrollFor(targetMonth) {
   const [year, mm] = targetMonth.split('-').map(Number);
   if (!year || mm < 1 || mm > 12) throw new Error('Choose a valid payroll month.');
   const prevDate = new Date(Date.UTC(year, mm - 2, 1));
   const sourceMonth = prevDate.toISOString().slice(0, 7);
+  const inputRecords = db.timeEntries.filter((entry) => entry.type === 'corrective' && entry.date.startsWith(sourceMonth)).map((entry) => {
+    const bug = findBug(entry.bugId); const task = findTask(entry.taskId); const employee = findEmployee(entry.employeeId);
+    return { timeId: entry.id, date: entry.date, employeeId: entry.employeeId, employee: employee?.name || 'Unknown employee', taskId: entry.taskId, module: task?.module || 'Unknown module', bugId: entry.bugId, hours: entry.hours, status: entry.status, cause: bug?.cause || 'missing', causeReason: bug?.causeReason || '', reviewNote: entry.reviewNote || '' };
+  });
   const rows = db.employees.filter((employee) => employee.active).map((employee) => {
     const eligible = db.timeEntries.filter((entry) => entry.employeeId === employee.id && entry.type === 'corrective' && entry.status === 'approved' && entry.date.startsWith(sourceMonth) && findBug(entry.bugId)?.cause === 'original');
     const hours = eligible.reduce((sum, entry) => sum + entry.hours, 0);
     const rate = monthlyRate(employee);
-    const rawLines = eligible.map((entry) => ({ timeId: entry.id, taskId: entry.taskId, bugId: entry.bugId, module: findTask(entry.taskId)?.module || 'Unknown module', hours: entry.hours, amount: Math.round(entry.hours * rate * 100) / 100 }));
-    const requestedDeduction = rawLines.reduce((sum, line) => sum + line.amount, 0);
-    const deduction = Math.min(employee.monthlySalary, requestedDeduction);
-    let remaining = deduction;
-    const lines = rawLines.map((line) => { const appliedAmount = Math.round(Math.min(line.amount, remaining) * 100) / 100; remaining = Math.max(0, Math.round((remaining - appliedAmount) * 100) / 100); return { ...line, appliedAmount }; });
-    return { employeeId: employee.id, employee: employee.name, gross: employee.monthlySalary, hours, rate, rateBasis: employee.payBasis === 'daily' ? `daily rate converted using ${employee.hoursPerDay || 8}h/day` : 'hourly rate', requestedDeduction, capApplied: requestedDeduction > deduction, deduction, net: Math.max(0, employee.monthlySalary - deduction), lines };
+    const rawLines = eligible.map((entry) => ({ timeId: entry.id, taskId: entry.taskId, bugId: entry.bugId, module: findTask(entry.taskId)?.module || 'Unknown module', hours: entry.hours, amountPaise: correctiveAmountPaise(entry, employee) }));
+    const requestedPaise = rawLines.reduce((sum, line) => sum + line.amountPaise, 0);
+    const grossPaise = Math.round(Number(employee.monthlySalary) * 100);
+    const deductionPaise = Math.min(grossPaise, requestedPaise);
+    let remainingPaise = deductionPaise;
+    const lines = rawLines.map((line) => { const appliedPaise = Math.min(line.amountPaise, remainingPaise); remainingPaise -= appliedPaise; return { timeId: line.timeId, taskId: line.taskId, bugId: line.bugId, module: line.module, hours: line.hours, amount: line.amountPaise / 100, appliedAmount: appliedPaise / 100 }; });
+    const gross = grossPaise / 100; const requestedDeduction = requestedPaise / 100; const deduction = deductionPaise / 100;
+    return { employeeId: employee.id, employee: employee.name, gross, hours, rate, rateBasis: employee.payBasis === 'daily' ? `daily rate converted using ${employee.hoursPerDay || 8}h/day` : 'hourly rate', requestedDeduction, capApplied: requestedPaise > deductionPaise, deduction, net: Math.max(0, gross - deduction), lines };
   });
-  return { month: targetMonth, sourceMonth, rows, totalGross: rows.reduce((sum, row) => sum + row.gross, 0), totalDeduction: rows.reduce((sum, row) => sum + row.deduction, 0), totalNet: rows.reduce((sum, row) => sum + row.net, 0) };
+  const defectsFound = db.bugs.filter((bug) => bug.foundAt?.startsWith(sourceMonth)).map((bug) => { const task = findTask(bug.taskId); return { bugId: bug.id, taskId: bug.taskId, module: task?.module || 'Unknown module', ownerId: task?.ownerId || null }; });
+  const eligibleInputs = inputRecords.filter((entry) => entry.status === 'approved' && entry.cause === 'original');
+  const sourceSummary = { defectsFound, correctiveHours: inputRecords.reduce((sum, entry) => sum + Number(entry.hours), 0), eligibleHours: eligibleInputs.reduce((sum, entry) => sum + Number(entry.hours), 0), payrollAdjustment: rows.reduce((sum, row) => sum + row.deduction, 0) };
+  return { month: targetMonth, sourceMonth, calculationVersion: 'paise-v1', inputRecords, sourceSummary, rows, totalGross: rows.reduce((sum, row) => sum + row.gross, 0), totalDeduction: sourceSummary.payrollAdjustment, totalNet: rows.reduce((sum, row) => sum + row.net, 0) };
 }
 function payrollBlockers(report) {
   const entries = db.timeEntries.filter((entry) => entry.type === 'corrective' && entry.date.startsWith(report.sourceMonth));
@@ -146,7 +164,7 @@ async function command(body) {
     case 'createTask': {
       validateRole(role, ['team-lead', 'admin']);
       if (!d.title?.trim() || !d.module?.trim() || !findEmployee(d.ownerId) || !d.committedDate) throw new Error('Add a title, module, owner, and committed date.');
-      const task = { id: `T-${Math.floor(250 + Math.random() * 700)}`, module: d.module.trim(), project: d.project?.trim() || 'Meridian finance platform', title: d.title.trim(), ownerId: d.ownerId, status: 'Assigned', committedDate: d.committedDate, completedAt: null, priority: d.priority || 'Medium', tags: d.tags || [], history: [] };
+      const task = { id: uniqueId('T', db.tasks), module: d.module.trim(), project: d.project?.trim() || 'Meridian finance platform', title: d.title.trim(), ownerId: d.ownerId, status: 'Assigned', committedDate: d.committedDate, completedAt: null, priority: d.priority || 'Medium', tags: d.tags || [], history: [] };
       task.history.unshift(taskHistory('Assigned', new Date().toISOString(), name, 'Task assigned with a committed date.'));
       db.tasks.unshift(task); audit(name, role, 'Task assigned', `${task.id} · ${task.title} · ${findEmployee(task.ownerId).name}`); notify(task.ownerId, 'New task assigned', `${task.id} ${task.title} is due ${task.committedDate}.`, 'task');
       return task;
@@ -156,10 +174,12 @@ async function command(body) {
       validateRole(role, ['employee', 'team-lead', 'admin']);
       if (role === 'employee' && task.ownerId !== employee?.id) throw new Error('You can only update your own assigned tasks.');
       const next = d.status;
+      if (next === 'Under Fix') validateRole(role, ['team-lead', 'admin']);
+      if (next === 'Closed') validateRole(role, ['team-lead', 'admin']);
       const permitted = { Assigned: ['In Progress'], 'In Progress': ['Completed'], Reopened: ['Under Fix'], 'Under Fix': ['Closed'] };
       if (!permitted[task.status]?.includes(next)) throw new Error(`Task cannot move from ${task.status} to ${next}.`);
       history(task, next, name, d.note?.trim() || `Moved to ${next}.`);
-      if (next === 'Closed') { const bug = db.bugs.find((item) => item.taskId === task.id && item.status !== 'Closed'); if (bug) { bug.status = 'Closed'; bug.closedAt = new Date().toISOString(); } }
+      if (next === 'Closed') { const closedAt = new Date().toISOString(); db.bugs.filter((item) => item.taskId === task.id && item.status !== 'Closed').forEach((bug) => { bug.status = 'Closed'; bug.closedAt = closedAt; }); }
       audit(name, role, 'Task status changed', `${task.id} · ${task.status}`); notify(task.ownerId, `Task ${next.toLowerCase()}`, `${task.id} ${task.title} is now ${next}.`, 'task');
       return task;
     }
@@ -169,19 +189,22 @@ async function command(body) {
       if (role === 'employee' && task.ownerId !== employee?.id && !['Completed', 'Closed'].includes(task.status)) throw new Error('Choose a completed module or task before reporting a defect.');
       if (!['Completed', 'Closed', 'Under Fix'].includes(task.status)) throw new Error('Defects can be raised against completed work.');
       if (!d.title?.trim() || !d.description?.trim() || !d.foundAt || !['Low', 'Medium', 'High', 'Critical'].includes(d.severity)) throw new Error('Add a title, description, severity, and date found.');
-      const bug = { id: `B-${Math.floor(100 + Math.random() * 899)}`, taskId: task.id, title: d.title.trim(), description: d.description.trim(), severity: d.severity, foundAt: new Date(`${d.foundAt}T12:00:00`).toISOString(), reportedBy: employee?.id || 'emp-dev', status: 'Reopened', cause: 'pending', causeReason: '', reviewedBy: null, reviewedAt: null, closedAt: null, tags: d.tags?.length ? d.tags : d.title.toLowerCase().match(/[a-z0-9]{4,}/g) || [] };
+      const bugDate = new Date(`${d.foundAt}T12:00:00Z`); if (!/^\d{4}-\d{2}-\d{2}$/.test(d.foundAt) || Number.isNaN(bugDate.valueOf()) || bugDate.toISOString().slice(0, 10) !== d.foundAt) throw new Error('Choose a valid date when the defect was found.');
+      const bug = { id: uniqueId('B', db.bugs), taskId: task.id, title: d.title.trim(), description: d.description.trim(), severity: d.severity, foundAt: bugDate.toISOString(), reportedBy: employee?.id || 'emp-dev', status: 'Reopened', cause: 'pending', causeReason: '', reviewedBy: null, reviewedAt: null, closedAt: null, tags: d.tags?.length ? d.tags : d.title.toLowerCase().match(/[a-z0-9]{4,}/g) || [] };
       db.bugs.unshift(bug); history(task, 'Reopened', name, `${bug.id} reported: ${bug.title}`); notify(task.ownerId, 'A delivered task was reopened', `${bug.id} was linked to ${task.id}. The manager will review its cause before any payroll impact.`, 'task'); audit(name, role, 'Defect reported; task reopened', `${bug.id} · ${task.id} · original owner ${findEmployee(task.ownerId)?.name || 'Unassigned'}`);
       return bug;
     }
     case 'logHours': {
       validateRole(role, ['employee']); if (!employee) throw new Error('Select an employee profile.');
       const hours = Number(d.hours); if (!Number.isFinite(hours) || hours <= 0 || hours > 16 || Math.round(hours * 4) !== hours * 4) throw new Error('Enter hours from 0.25 to 16 in quarter-hour increments.');
-      const date = d.date || today; const already = db.timeEntries.filter((entry) => entry.employeeId === employee.id && entry.date === date).reduce((sum, entry) => sum + entry.hours, 0); if (already + hours > 16) throw new Error('The total for this employee and date cannot exceed 16 hours.');
+      const date = d.date || today; const parsedDate = new Date(`${date}T12:00:00Z`); if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(parsedDate.valueOf()) || parsedDate.toISOString().slice(0, 10) !== date) throw new Error('Choose a valid work date.');
+      if (d.type === 'corrective' && db.payroll.some((report) => report.sourceMonth === date.slice(0, 7))) throw new Error(`Payroll for corrective work logged in ${date.slice(0, 7)} is already finalized.`);
+      const already = db.timeEntries.filter((entry) => entry.employeeId === employee.id && entry.date === date).reduce((sum, entry) => sum + entry.hours, 0); if (already + hours > 16) throw new Error('The total for this employee and date cannot exceed 16 hours.');
       let task; let bug = null;
       if (d.type === 'corrective') { bug = findBug(d.bugId); if (!bug || bug.status === 'Closed' || !['Reopened', 'Under Fix'].includes(bug.status)) throw new Error('Choose an open defect for corrective work.'); task = findTask(bug.taskId); if (task?.ownerId !== employee.id) throw new Error('Corrective hours must be logged by the employee responsible for the original delivery.'); }
       else { task = findTask(d.taskId); if (!task || task.ownerId !== employee.id || !['Assigned', 'In Progress'].includes(task.status)) throw new Error('Choose one of your active tasks for regular work.'); }
       if (!d.note?.trim()) throw new Error('Add a short work note.');
-      const entry = { id: `TIME-${Math.floor(1000 + Math.random() * 9000)}`, employeeId: employee.id, taskId: task.id, bugId: bug?.id || null, type: d.type === 'corrective' ? 'corrective' : 'regular', hours, note: d.note.trim(), date, status: d.type === 'corrective' ? 'pending' : 'approved', createdAt: new Date().toISOString(), reviewedBy: d.type === 'corrective' ? null : 'System', reviewedAt: d.type === 'corrective' ? null : new Date().toISOString(), reviewNote: d.type === 'corrective' ? '' : 'Regular work is excluded from corrective-hour deduction.' };
+      const entry = { id: uniqueId('TIME', db.timeEntries), employeeId: employee.id, taskId: task.id, bugId: bug?.id || null, type: d.type === 'corrective' ? 'corrective' : 'regular', hours, note: d.note.trim(), date, status: d.type === 'corrective' ? 'pending' : 'approved', createdAt: new Date().toISOString(), reviewedBy: d.type === 'corrective' ? null : 'System', reviewedAt: d.type === 'corrective' ? null : new Date().toISOString(), reviewNote: d.type === 'corrective' ? '' : 'Regular work is excluded from corrective-hour deduction.' };
       db.timeEntries.unshift(entry); audit(name, role, d.type === 'corrective' ? 'Corrective hours submitted for review' : 'Regular hours logged', `${entry.hours}h · ${task.id} · ${bug?.id || 'new work'}`);
       if (d.type === 'corrective') notify(employee.id, 'Corrective hours submitted', `${hours} hour${hours === 1 ? '' : 's'} for ${bug.id} are awaiting manager review. They will not enter payroll until approved and the cause is confirmed.`, 'payroll');
       return entry;
@@ -196,19 +219,29 @@ async function command(body) {
       else throw new Error('Choose approve or reject.');
       entry.reviewedBy = name; entry.reviewedAt = new Date().toISOString();
       audit(name, role, `Corrective hours ${entry.status}`, `${entry.hours}h · ${bug.id} · ${entry.reviewNote}`);
-      const estimate = Math.round(entry.hours * monthlyRate(findEmployee(entry.employeeId)) * 100) / 100;
-      notify(entry.employeeId, entry.status === 'approved' ? 'Corrective hours approved' : 'Corrective hours declined', entry.status === 'approved' ? `${entry.hours} hours for ${bug.id} were approved. ${bug.cause === 'original' ? `Current payroll estimate: ₹${estimate.toLocaleString('en-IN')} for next month.` : 'No payroll deduction is queued until the manager reviews the defect cause.'}` : `${entry.hours} hours for ${bug.id} were not approved. Reason: ${entry.reviewNote}`, 'payroll');
+      const targetMonth = nextMonthKey(entry.date.slice(0, 7));
+      const previewRow = entry.status === 'approved' && bug.cause === 'original' ? payrollFor(targetMonth).rows.find((row) => row.employeeId === entry.employeeId) : null;
+      const estimate = previewRow?.deduction || 0;
+      notify(entry.employeeId, entry.status === 'approved' ? 'Corrective hours approved' : 'Corrective hours declined', entry.status === 'approved' ? `${entry.hours} hours for ${bug.id} were approved. ${bug.cause === 'original' ? `${previewRow?.hours.toFixed(2) || entry.hours.toFixed(2)} eligible hours currently calculate to ₹${estimate.toLocaleString('en-IN')} for ${targetMonth}, before payroll is finalized.` : 'No payroll deduction is queued until the manager reviews the defect cause.'}` : `${entry.hours} hours for ${bug.id} were not approved. Reason: ${entry.reviewNote}`, 'payroll');
       return entry;
     }
     case 'classifyBug': {
       validateRole(role, ['team-lead', 'admin']);
       const bug = findBug(d.bugId); if (!bug) throw new Error('Defect not found.');
       if (!['original', 'external'].includes(d.cause) || !d.reason?.trim()) throw new Error('Choose a cause and record the review reason.');
+      const finalized = db.payroll.find((report) => report.inputRecords?.some((entry) => entry.bugId === bug.id) || report.sourceSummary?.defectsFound?.some((item) => item.bugId === bug.id) || report.rows?.some((row) => row.lines?.some((line) => line.bugId === bug.id)));
+      if (finalized) throw new Error(`The cause for ${bug.id} is part of finalized ${finalized.month} payroll and cannot be changed.`);
       bug.cause = d.cause; bug.causeReason = d.reason.trim(); bug.reviewedBy = name; bug.reviewedAt = new Date().toISOString();
       audit(name, role, d.cause === 'original' ? 'Delivery cause confirmed' : 'External cause confirmed', `${bug.id} · ${bug.causeReason}`);
-      const accepted = db.timeEntries.filter((entry) => entry.bugId === bug.id && entry.type === 'corrective' && entry.status === 'approved').reduce((sum, entry) => sum + entry.hours, 0);
-      if (d.cause === 'original' && accepted > 0) notify(findTask(bug.taskId)?.ownerId, 'Payroll estimate updated', `${accepted} approved corrective hours for ${bug.id} now meet the original-delivery criteria. The next payroll preview has been updated with the hourly-rate calculation.`, 'payroll');
-      else if (d.cause === 'external') notify(findTask(bug.taskId)?.ownerId, 'No rework deduction for this defect', `${bug.id} was reviewed as an external change. Its corrective hours are excluded from payroll deductions.`, 'payroll');
+      const accepted = db.timeEntries.filter((entry) => entry.bugId === bug.id && entry.type === 'corrective' && entry.status === 'approved');
+      if (d.cause === 'original' && accepted.length) {
+        const ownerId = findTask(bug.taskId)?.ownerId;
+        for (const sourceMonth of new Set(accepted.map((entry) => entry.date.slice(0, 7)))) {
+          const targetMonth = nextMonthKey(sourceMonth); const report = payrollFor(targetMonth); const row = report.rows.find((item) => item.employeeId === ownerId);
+          notify(ownerId, 'Payroll estimate updated', `${bug.id} now has ${accepted.filter((entry) => entry.date.startsWith(sourceMonth)).reduce((sum, entry) => sum + entry.hours, 0).toFixed(2)} approved corrective hours attributed to original delivery. The full ${targetMonth} preview currently totals ₹${(row?.deduction || 0).toLocaleString('en-IN')} and can still change before finalization.`, 'payroll');
+        }
+      }
+      else if (d.cause === 'external') notify(findTask(bug.taskId)?.ownerId, 'No rework deduction for this defect', `${bug.id} was reviewed as an external change. Its corrective hours are excluded from payroll deductions. Reason: ${bug.causeReason}`, 'payroll');
       return bug;
     }
     case 'updateRate': {
@@ -218,16 +251,24 @@ async function command(body) {
       target.payBasis = payBasis; target.monthlySalary = monthlySalary;
       if (payBasis === 'daily') { target.dailyRate = rate; target.hourlyRate = rate / (target.hoursPerDay || 8); }
       else { target.hourlyRate = rate; target.dailyRate = rate * (target.hoursPerDay || 8); }
-      audit(name, role, 'Payroll rates updated', `${target.name} · ₹${rate}/${payBasis} · ₹${monthlySalary}/month`); return target;
+      audit(name, role, 'Payroll rates updated', `${target.name} · ₹${rate}/${payBasis} · ₹${monthlySalary}/month`);
+      const affectedMonths = new Set(db.timeEntries.filter((entry) => entry.employeeId === target.id && entry.type === 'corrective' && entry.status === 'approved' && findBug(entry.bugId)?.cause === 'original').map((entry) => entry.date.slice(0, 7)));
+      for (const sourceMonth of affectedMonths) {
+        const targetMonth = nextMonthKey(sourceMonth); if (db.payroll.some((report) => report.month === targetMonth)) continue;
+        const row = payrollFor(targetMonth).rows.find((item) => item.employeeId === target.id);
+        if (row?.hours) notify(target.id, 'Payroll estimate updated', `${row.hours.toFixed(2)} approved original-cause hours from ${sourceMonth} now calculate to ₹${row.deduction.toLocaleString('en-IN')} for ${targetMonth} at the updated ${payBasis} rate. Payroll has not been finalized.`, 'payroll');
+      }
+      return target;
     }
     case 'finalizePayroll': {
       validateRole(role, ['finance', 'admin']); const report = payrollFor(d.month);
+      if (db.payroll.some((item) => item.month === d.month)) throw new Error(`Payroll for ${d.month} is already finalized.`);
       const blockers = payrollBlockers(report);
       if (blockers.pendingHours.length || blockers.causeReview.length) throw new Error(`Resolve ${blockers.pendingHours.length} pending hour review${blockers.pendingHours.length === 1 ? '' : 's'} and ${blockers.causeReview.length} unresolved cause review${blockers.causeReview.length === 1 ? '' : 's'} for ${report.sourceMonth} before finalizing.`);
       if (!d.note?.trim()) throw new Error('Record the finance review reason before finalizing payroll.');
       const saved = { ...report, id: `PAY-${d.month}`, finalizedAt: new Date().toISOString(), finalizedBy: name, finalizedReason: d.note.trim() };
       db.payroll = [saved, ...db.payroll.filter((item) => item.month !== d.month)];
-      audit(name, role, 'Payroll deductions finalized', `${d.month} · ${report.rows.reduce((sum, row) => sum + row.hours, 0)} approved hours · ₹${report.totalDeduction.toLocaleString('en-IN')} total deduction · ${saved.finalizedReason}`);
+      audit(name, role, 'Payroll deductions finalized', `${d.month} · ${report.rows.reduce((sum, row) => sum + row.hours, 0)} approved hours · ${report.inputRecords.length} source records captured · ₹${report.totalDeduction.toLocaleString('en-IN')} total deduction · ${saved.finalizedReason}`);
       for (const row of report.rows.filter((item) => item.hours > 0)) notify(row.employeeId, 'Payroll deductions finalized', `${row.hours} approved corrective hours worth ₹${row.deduction.toLocaleString('en-IN')} will appear on your ${d.month} payslip with the linked task and defect details.`, 'payroll');
       return saved;
     }
