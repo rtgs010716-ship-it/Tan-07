@@ -1,0 +1,12 @@
+node_modules/
+work/
+.env
+.env.*
+!.env.example
+data/workspace.json
+data/workspace.json.tmp
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+.DS_Store
+Thumbs.db
