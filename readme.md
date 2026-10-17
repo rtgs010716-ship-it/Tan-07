@@ -13,7 +13,7 @@ The app uses Node.js built-in modules, so there is no dependency install step. I
 
 ## Portal sign-in and accounts
 
-On first run, choose **Set up the first administrator** on the portal chooser. That one-time setup creates the administrator login. Sign in, open **Accounts** in the sidebar, and create a separate login for each role. Employee accounts must be linked to an active employee profile. After setup, every portal requires the email and password for an account assigned to that role. Use **Sign out** to return to the chooser.
+On first run, choose **Set up the first administrator** on the portal chooser. That one-time setup creates the administrator login. Sign in and open **Accounts** in the sidebar to create logins directly or review access requests. Each role has its own login page; non-administrator users can request an account from that portal's sign-in screen. Requests are saved to the database with a salted password hash and stay inactive until an administrator approves them. Employee requests must be linked to an active employee profile during approval. After setup, every portal requires the email and password for an active account assigned to that role. Use **Sign out** to return to the chooser.
 
 The app supports these role-specific pages and workflows:
 

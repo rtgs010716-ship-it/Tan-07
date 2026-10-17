@@ -96,7 +96,7 @@ function sendJson(res, status, body) {
 }
 function safeAccount(account) {
   if (!account) return null;
-  return { id: account.id, email: account.email, name: account.name, role: account.role, employeeId: account.employeeId || null, createdAt: account.createdAt };
+  return { id: account.id, email: account.email, name: account.name, role: account.role, employeeId: account.employeeId || null, createdAt: account.createdAt, active: account.active !== false, status: account.status || (account.active === false ? 'disabled' : 'approved') };
 }
 function sessionAccount(req) {
   const cookie = req.headers.cookie || '';
@@ -180,9 +180,40 @@ function createAccountRecord(data) {
     if (db.accounts.some((item) => item.role === 'employee' && item.employeeId === employeeId && item.active !== false)) throw new Error('That employee already has a login account.');
   }
   const credential = passwordRecord(password);
-  const account = { id: randomUUID(), email, name, role, employeeId, passwordSalt: credential.salt, passwordHash: credential.hash, createdAt: new Date().toISOString(), active: true };
+  const account = { id: randomUUID(), email, name, role, employeeId, passwordSalt: credential.salt, passwordHash: credential.hash, createdAt: new Date().toISOString(), active: true, status: 'approved' };
   db.accounts.push(account);
   audit(name, role, 'Portal account created', `${email} · ${role}`);
+  return account;
+}
+function createAccountRequest(data) {
+  const email = String(data.email || '').trim().toLowerCase();
+  const name = String(data.name || '').trim();
+  const role = String(data.role || '');
+  const password = String(data.password || '');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) throw new Error('Enter a valid work email.');
+  if (!name || name.length > 80) throw new Error('Enter a name (up to 80 characters).');
+  if (!['employee', 'team-lead', 'manager', 'finance'].includes(role)) throw new Error('Choose an available non-administrator portal.');
+  if (password.length < 10 || password.length > 1024) throw new Error('Use a password between 10 and 1,024 characters.');
+  if (db.accounts.some((item) => item.email === email)) throw new Error('An account or access request already exists for that email. Contact the workspace administrator if you need help.');
+  const credential = passwordRecord(password);
+  const account = { id: randomUUID(), email, name, role, employeeId: null, passwordSalt: credential.salt, passwordHash: credential.hash, createdAt: new Date().toISOString(), active: false, status: 'pending' };
+  db.accounts.push(account);
+  audit('Account request', role, 'Portal access requested', `${email} · ${role}`);
+  return account;
+}
+function approveAccountRequest(accountId, data, actor) {
+  const account = db.accounts.find((item) => item.id === accountId && item.status === 'pending');
+  if (!account) throw new Error('That pending account request no longer exists. Refresh the Accounts page.');
+  if (account.role === 'employee') {
+    const employeeId = String(data.employeeId || '');
+    const employee = db.employees.find((item) => item.id === employeeId && item.active);
+    if (!employee) throw new Error('Choose an active employee profile before approving this request.');
+    if (db.accounts.some((item) => item.role === 'employee' && item.employeeId === employeeId && item.active !== false)) throw new Error('That employee already has an active login account.');
+    account.employeeId = employeeId;
+  }
+  account.active = true;
+  account.status = 'approved';
+  audit(actor.name, actor.role, 'Portal account approved', `${account.email} · ${account.role}`);
   return account;
 }
 function audit(actor, role, action, detail) {
@@ -456,6 +487,23 @@ const server = http.createServer(async (req, res) => {
       newSession(res, account);
       return sendJson(res, 200, { account: safeAccount(account) });
     }
+    if (req.method === 'POST' && url.pathname === '/api/auth/request-account') {
+      const body = await readBody(req);
+      const operation = mutationQueue.then(async () => {
+        const previous = db;
+        db = structuredClone(db);
+        try {
+          if (db.accounts.length === 0) throw new Error('Set up the first administrator before requesting another portal account.');
+          const account = createAccountRequest(body);
+          await persist();
+          broadcast();
+          return account;
+        } catch (error) { db = previous; throw error; }
+      });
+      mutationQueue = operation.catch(() => {});
+      const account = await operation;
+      return sendJson(res, 201, { account: safeAccount(account), approvalRequired: true });
+    }
     if (req.method === 'POST' && url.pathname === '/api/auth/logout') { clearSession(req, res); return sendJson(res, 200, { ok: true }); }
     if (req.method === 'POST' && url.pathname === '/api/auth/create-account') {
       const body = await readBody(req);
@@ -484,6 +532,27 @@ const server = http.createServer(async (req, res) => {
       if (!account) return sendJson(res, 401, { error: 'Sign in to view accounts.' });
       if (account.role !== 'admin') return sendJson(res, 403, { error: 'Only an administrator can view accounts.' });
       return sendJson(res, 200, { accounts: db.accounts.map(safeAccount) });
+    }
+    const approveAccountMatch = req.method === 'POST' && url.pathname.match(/^\/api\/accounts\/([^/]+)\/approve$/);
+    if (approveAccountMatch) {
+      const actor = sessionAccount(req);
+      if (!actor) return sendJson(res, 401, { error: 'Sign in to review account requests.' });
+      if (actor.role !== 'admin') return sendJson(res, 403, { error: 'Only an administrator can approve portal accounts.' });
+      const body = await readBody(req);
+      const accountId = decodeURIComponent(approveAccountMatch[1]);
+      const operation = mutationQueue.then(async () => {
+        const previous = db;
+        db = structuredClone(db);
+        try {
+          const account = approveAccountRequest(accountId, body, actor);
+          await persist();
+          broadcast();
+          return account;
+        } catch (error) { db = previous; throw error; }
+      });
+      mutationQueue = operation.catch(() => {});
+      const account = await operation;
+      return sendJson(res, 200, { account: safeAccount(account) });
     }
     if (req.method === 'GET' && url.pathname === '/api/state') {
       const account = sessionAccount(req);

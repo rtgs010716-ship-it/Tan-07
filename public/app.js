@@ -31,6 +31,7 @@ let employeeId = localStorage.getItem('rl-employee') || 'emp-aisha';
 let signedIn = false;
 let authAccount = null;
 let setupRequired = false;
+let loginNotice = '';
 let accountList = [];
 let modal = '';
 let taskSearch = '';
@@ -124,7 +125,7 @@ function connectLive() {
   eventSource?.close();
   eventSource = new EventSource('/api/events');
   eventSource.addEventListener('update', async () => {
-    try { await refreshState(Boolean(modal)); if (modal) { /* Keep an in-progress form intact; the next action uses current server state. */ } }
+    try { if (role === 'admin') await refreshAccounts(); await refreshState(Boolean(modal)); }
     catch { setSync(false); }
   });
   eventSource.onopen = () => setSync(true);
@@ -165,7 +166,8 @@ function roleChooser() {
   ];
   const brand = `<div class="login-brand"><span class="brand-mark">${buttonIcon('mark')}</span><span><strong>REWORK LEDGER</strong><small>QUALITY OPERATIONS</small></span></div>`;
   if (loginStage === 'setup') return `<main class="login-shell"><section class="portal-auth-card setup-auth-card"><div class="portal-story">${brand}<div class="portal-story-topline">FIRST RUN · ACCOUNT SETUP</div><div class="portal-story-copy"><div class="login-eyebrow">ONE-TIME WORKSPACE SETUP</div><h1>Create the first administrator.</h1><p>This account manages portal access. Create employee, team lead, manager, and finance logins from the Accounts page after signing in.</p></div><div class="login-live-note"><span class="live-dot"></span><span>Account records are saved in the local database</span></div></div><div class="portal-form"><div class="eyebrow">INITIAL ADMINISTRATOR</div><h2 id="loginTitle">Set up Rework Ledger</h2><p class="login-subtitle">Use a work email and a password with at least 10 characters.</p><form data-form="setup-admin" class="auth-form"><label class="field"><span>Administrator name</span><input name="name" autocomplete="name" required maxlength="80" placeholder="Your name" /></label><label class="field"><span>Work email</span><input name="email" type="email" autocomplete="email" required maxlength="254" placeholder="name@company.com" /></label><label class="field"><span>Password</span><input name="password" type="password" autocomplete="new-password" required minlength="10" maxlength="1024" placeholder="At least 10 characters" /></label><label class="field"><span>Confirm password</span><input name="confirmPassword" type="password" autocomplete="new-password" required minlength="10" maxlength="1024" placeholder="Re-enter password" /></label><div class="form-error" role="alert"></div><button type="submit" class="button primary login-submit">Create administrator ${buttonIcon('arrow')}</button></form><button type="button" class="button text portal-back" data-action="choose-portals">${buttonIcon('arrow')} Back to role portals</button></div></section><footer class="login-footer">MERIDIAN QUALITY WORKSPACE <span>·</span> Persistent account setup</footer></main>`;
-  if (loginStage === 'portal') {
+  if (loginStage === 'portal' || loginStage === 'request') {
+    const requesting = loginStage === 'request';
     const profile = portalProfiles[role];
     return `<main class="login-shell"><section class="portal-auth-card" aria-labelledby="loginTitle">
       <div class="portal-story">${brand}<div class="portal-story-topline">REWORK · REVIEW · PAYROLL</div><div class="portal-motion" aria-label="Animated delivery lifecycle"><span class="motion-track"></span>${['ASSIGNED','IN PROGRESS','COMPLETED','REOPENED','UNDER FIX','CLOSED'].map((step, index) => `<span class="motion-step motion-step-${index + 1}"><i></i>${step}</span>`).join('')}</div>
@@ -173,9 +175,10 @@ function roleChooser() {
           <div class="portal-info-grid"><div><span>WHAT YOU SEE</span><ul>${profile.see.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div><div><span>WHAT YOU CAN DO</span><ul>${profile.do.map((item) => `<li>${esc(item)}</li>`).join('')}</ul></div></div>
         </div><div class="login-live-note"><span class="live-dot"></span><span>Persistent local database · live updates</span></div>
       </div>
-      <div class="portal-form"><div class="eyebrow">WORKSPACE SIGN-IN · ${esc(roleNames[role].toUpperCase())}</div><span class="login-profile-badge portal-badge">${esc(roleNames[role])}</span><h2 id="loginTitle">Sign in as ${esc(roleNames[role])}</h2><p class="login-subtitle">Open the pages and records connected to this role.</p>
-        <form data-form="login" class="auth-form"><label class="field"><span>Work email</span><input name="email" type="email" autocomplete="username" required maxlength="254" placeholder="name@company.com" /></label><label class="field"><span>Password</span><input name="password" type="password" autocomplete="current-password" required maxlength="1024" placeholder="Your password" /></label><div class="form-error" role="alert"></div><button type="submit" class="button primary login-submit">Sign in to ${esc(roleNames[role])} ${buttonIcon('arrow')}</button></form>
-        ${setupRequired ? `<div class="demo-disclosure"><span>${buttonIcon('shield')}</span><p>No account exists yet. Create the first administrator account, then add logins for each portal from Accounts.</p></div><button type="button" class="button text account-create-link" data-action="setup-admin">Create account ${buttonIcon('arrow')}</button>` : `<div class="demo-disclosure"><span>${buttonIcon('shield')}</span><p>This login only opens the ${esc(roleNames[role])} portal. Ask your workspace administrator to create an account if you do not have one.</p></div>`}
+      <div class="portal-form"><div class="eyebrow">${requesting ? 'REQUEST PORTAL ACCESS' : `WORKSPACE SIGN-IN · ${esc(roleNames[role].toUpperCase())}`}</div><span class="login-profile-badge portal-badge">${esc(roleNames[role])}</span><h2 id="loginTitle">${requesting ? `Create a ${esc(roleNames[role])} account` : `Sign in as ${esc(roleNames[role])}`}</h2><p class="login-subtitle">${requesting ? 'Submit your details for administrator review. Your account will be saved in the workspace database.' : 'Open the pages and records connected to this role.'}</p>
+        ${loginNotice && !requesting ? `<div class="form-success" role="status">${esc(loginNotice)}</div>` : ''}
+        ${requesting ? `<form data-form="request-account" class="auth-form"><label class="field"><span>Full name</span><input name="name" autocomplete="name" required maxlength="80" placeholder="Your name" /></label><label class="field"><span>Work email</span><input name="email" type="email" autocomplete="email" required maxlength="254" placeholder="name@company.com" /></label><label class="field"><span>Set password</span><input name="password" type="password" autocomplete="new-password" required minlength="10" maxlength="1024" placeholder="At least 10 characters" /></label><label class="field"><span>Confirm password</span><input name="confirmPassword" type="password" autocomplete="new-password" required minlength="10" maxlength="1024" placeholder="Enter it again" /></label><div class="form-error" role="alert"></div><button type="submit" class="button primary login-submit">Submit account request ${buttonIcon('arrow')}</button></form><div class="demo-disclosure"><span>${buttonIcon('shield')}</span><p>Access starts after the workspace administrator approves your requested role. Employee requests are linked to an active employee profile during approval.</p></div><button type="button" class="button text portal-back" data-action="portal-signin">Already have an account? Sign in</button>` : `<form data-form="login" class="auth-form"><label class="field"><span>Work email</span><input name="email" type="email" autocomplete="username" required maxlength="254" placeholder="name@company.com" /></label><label class="field"><span>Password</span><input name="password" type="password" autocomplete="current-password" required maxlength="1024" placeholder="Your password" /></label><div class="form-error" role="alert"></div><button type="submit" class="button primary login-submit">Sign in to ${esc(roleNames[role])} ${buttonIcon('arrow')}</button></form>
+        ${setupRequired ? `<div class="demo-disclosure"><span>${buttonIcon('shield')}</span><p>No account exists yet. Create the first administrator account, then add logins for each portal from Accounts.</p></div><button type="button" class="button text account-create-link" data-action="setup-admin">Create account ${buttonIcon('arrow')}</button>` : role !== 'admin' ? `<div class="demo-disclosure"><span>${buttonIcon('shield')}</span><p>New to this portal? Submit an account request. The administrator reviews each role before access is activated.</p></div><button type="button" class="button text account-create-link" data-action="request-account">Create account / request access ${buttonIcon('arrow')}</button>` : `<div class="demo-disclosure"><span>${buttonIcon('shield')}</span><p>This login only opens the Administrator portal. Ask an existing administrator to create an administrator account for you.</p></div>`}`}
         <button type="button" class="button text portal-back" data-action="choose-portals">${buttonIcon('arrow')} Choose another portal</button>
       </div>
     </section><footer class="login-footer">MERIDIAN QUALITY WORKSPACE <span>·</span> Changes save to the local database as they happen</footer></main>`;
@@ -187,7 +190,7 @@ function roleChooser() {
     </div>
     <div class="login-form"><div class="eyebrow">SECURE WORKSPACE · ROLE PORTALS</div><h2 id="loginTitle">Choose your portal</h2><p class="login-subtitle">Sign in with an account assigned to the portal you need.</p>
       <div class="role-grid" role="group" aria-label="Choose a workspace role">${roles.map((item) => `<button type="button" class="role-card" data-action="open-portal" data-role="${item.id}"><span class="role-card-icon">${buttonIcon(item.icon)}</span><span class="role-card-copy"><strong>${esc(item.title)} portal</strong><small>${esc(item.detail)}</small></span><span class="role-card-check">${buttonIcon('arrow')}</span></button>`).join('')}</div>
-      ${setupRequired ? `<div class="first-account-copy">There are no accounts in this workspace yet. The first account becomes the administrator; you can add every other role from the Accounts page.</div><button type="button" class="button primary login-submit setup-link" data-action="setup-admin">Create account ${buttonIcon('arrow')}</button>` : `<div class="demo-disclosure"><span>${buttonIcon('shield')}</span><p>Need another account? Ask your administrator to add it from the Accounts page.</p></div>`}
+      ${setupRequired ? `<div class="first-account-copy">There are no accounts in this workspace yet. The first account becomes the administrator; you can add every other role from the Accounts page.</div><button type="button" class="button primary login-submit setup-link" data-action="setup-admin">Create account ${buttonIcon('arrow')}</button>` : `<div class="demo-disclosure"><span>${buttonIcon('shield')}</span><p>Choose a portal to sign in or request access. New accounts are saved immediately and activated after administrator approval.</p></div>`}
     </div>
   </section><footer class="login-footer">MERIDIAN QUALITY WORKSPACE <span>·</span> Changes save to the local database as they happen</footer></main>`;
 }
@@ -573,11 +576,17 @@ function notificationsPage() {
 
 function accountsPage() {
   const roleLabels = { employee: 'Employee', 'team-lead': 'Team lead', manager: 'Manager', finance: 'Finance', admin: 'Administrator' };
-  const rows = accountList.map((account) => {
+  const pendingCount = accountList.filter((account) => account.status === 'pending').length;
+  const activeCount = accountList.filter((account) => account.active !== false).length;
+  const availableEmployees = state.employees.filter((employee) => employee.active && !accountList.some((account) => account.role === 'employee' && account.active !== false && account.employeeId === employee.id));
+  const rows = [...accountList].sort((a, b) => Number(b.status === 'pending') - Number(a.status === 'pending')).map((account) => {
     const employee = account.employeeId ? employeeById(account.employeeId) : null;
-    return `<tr><td><div class="cell-strong">${esc(account.name)}</div><div class="cell-sub">${esc(account.email)}</div></td><td><span class="status approved">${esc(roleLabels[account.role] || account.role)}</span></td><td>${employee ? esc(employee.name) : '—'}</td><td>${shortDate(account.createdAt, { year: 'numeric' })}</td></tr>`;
+    const pending = account.status === 'pending';
+    const employeeChoice = pending && account.role === 'employee' ? `<select class="account-employee-select" data-account-employee="${esc(account.id)}" aria-label="Employee profile for ${esc(account.name)}"><option value="">Link employee profile…</option>${availableEmployees.map((item) => `<option value="${esc(item.id)}">${esc(item.name)} · ${esc(item.title)}</option>`).join('')}</select>` : employee ? esc(employee.name) : '—';
+    const accessAction = pending ? `<button type="button" class="button small primary" data-action="approve-account" data-id="${esc(account.id)}">Approve</button>` : '<span class="cell-sub">—</span>';
+    return `<tr><td><div class="cell-strong">${esc(account.name)}</div><div class="cell-sub">${esc(account.email)}</div></td><td>${esc(roleLabels[account.role] || account.role)}</td><td>${employeeChoice}</td><td><span class="status ${pending ? 'pending' : account.active === false ? 'rejected' : 'approved'}">${pending ? 'Awaiting approval' : account.active === false ? 'Disabled' : 'Active'}</span><div class="cell-sub">${shortDate(account.createdAt, { year: 'numeric' })}</div></td><td>${accessAction}</td></tr>`;
   }).join('');
-  return `${pageHead('ACCESS CONTROL', 'Portal accounts', 'Add a separate sign-in for every employee and review role. Accounts are saved in the workspace database; passwords are stored as salted hashes.')}<div class="account-layout"><section class="panel"><div class="panel-head"><div><h2 class="panel-title">Create an account</h2><p class="panel-note">Choose the portal this person is allowed to open.</p></div><span class="panel-aux">Administrator only</span></div><form data-form="create-account" class="account-form"><div class="form-grid"><div class="field"><label for="accountName">Full name</label><input id="accountName" name="name" autocomplete="name" required maxlength="80" placeholder="Person's name" /></div><div class="field"><label for="accountEmail">Work email</label><input id="accountEmail" name="email" type="email" autocomplete="email" required maxlength="254" placeholder="name@company.com" /></div><div class="field"><label for="accountRole">Portal role</label><select id="accountRole" name="role" required><option value="employee">Employee</option><option value="team-lead">Team lead</option><option value="manager">Manager</option><option value="finance">Finance</option><option value="admin">Administrator</option></select></div><div class="field"><label for="accountEmployee">Employee profile</label><select id="accountEmployee" name="employeeId"><option value="">Not linked</option>${state.employees.filter((employee) => employee.active).map((employee) => `<option value="${esc(employee.id)}">${esc(employee.name)} · ${esc(employee.title)}</option>`).join('')}</select><span class="field-help">Required only when the role is Employee.</span></div><div class="field full"><label for="accountPassword">Initial password</label><input id="accountPassword" name="password" type="password" autocomplete="new-password" required minlength="10" maxlength="1024" placeholder="At least 10 characters" /><span class="field-help">Share this initial password securely. The person can use it on their role's login page.</span></div></div><div class="form-error" role="alert"></div><div class="account-form-actions"><button type="submit" class="button primary">Create portal account ${buttonIcon('arrow')}</button></div></form></section><section class="panel"><div class="panel-head"><div><h2 class="panel-title">Workspace accounts</h2><p class="panel-note">${accountList.length} active login${accountList.length === 1 ? '' : 's'} · passwords never appear here</p></div><span class="panel-aux">Persistent</span></div>${accountList.length ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>Person</th><th>Role</th><th>Employee link</th><th>Added</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<div class="empty-state">No portal accounts are registered yet.</div>'}</section></div>`;
+  return `${pageHead('ACCESS CONTROL', 'Portal accounts', 'Add separate employee, team lead, manager, and finance logins. New portal requests are saved in the database and wait for administrator approval.')}<div class="account-layout"><section class="panel"><div class="panel-head"><div><h2 class="panel-title">Create an account</h2><p class="panel-note">Choose the portal this person is allowed to open.</p></div><span class="panel-aux">Administrator only</span></div><form data-form="create-account" class="account-form"><div class="form-grid"><div class="field"><label for="accountName">Full name</label><input id="accountName" name="name" autocomplete="name" required maxlength="80" placeholder="Person's name" /></div><div class="field"><label for="accountEmail">Work email</label><input id="accountEmail" name="email" type="email" autocomplete="email" required maxlength="254" placeholder="name@company.com" /></div><div class="field"><label for="accountRole">Portal role</label><select id="accountRole" name="role" required><option value="employee">Employee</option><option value="team-lead">Team lead</option><option value="manager">Manager</option><option value="finance">Finance</option><option value="admin">Administrator</option></select></div><div class="field"><label for="accountEmployee">Employee profile</label><select id="accountEmployee" name="employeeId"><option value="">Not linked</option>${state.employees.filter((employee) => employee.active).map((employee) => `<option value="${esc(employee.id)}">${esc(employee.name)} · ${esc(employee.title)}</option>`).join('')}</select><span class="field-help">Required only when the role is Employee.</span></div><div class="field full"><label for="accountPassword">Initial password</label><input id="accountPassword" name="password" type="password" autocomplete="new-password" required minlength="10" maxlength="1024" placeholder="At least 10 characters" /><span class="field-help">Share this initial password securely. The person can use it on their role's login page.</span></div></div><div class="form-error" role="alert"></div><div class="account-form-actions"><button type="submit" class="button primary">Create portal account ${buttonIcon('arrow')}</button></div></form></section><section class="panel"><div class="panel-head"><div><h2 class="panel-title">Workspace accounts</h2><p class="panel-note">${activeCount} active login${activeCount === 1 ? '' : 's'} · ${pendingCount} request${pendingCount === 1 ? '' : 's'} awaiting approval · passwords never appear here</p></div><span class="panel-aux">Live database</span></div>${accountList.length ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>Person</th><th>Role</th><th>Employee profile</th><th>Access status</th><th>Review</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<div class="empty-state">No portal accounts are registered yet.</div>'}</section></div>`;
 }
 
 function content() {
@@ -707,11 +716,27 @@ function value(form, name) { const item = new FormData(form).get(name); return i
 document.addEventListener('click', async (event) => {
   const target = event.target.closest('[data-action]'); if (!target) return;
   const action = target.dataset.action;
-  if (action === 'open-portal') { role = target.dataset.role; loginStage = 'portal'; localStorage.setItem('rl-role', role); render(); return; }
+  if (action === 'open-portal') { role = target.dataset.role; loginStage = 'portal'; loginNotice = ''; localStorage.setItem('rl-role', role); render(); return; }
   if (action === 'setup-admin') { loginStage = 'setup'; render(); return; }
+  if (action === 'request-account') { loginNotice = ''; loginStage = 'request'; render(); return; }
+  if (action === 'portal-signin') { loginStage = 'portal'; render(); return; }
   if (action === 'choose-portals') { loginStage = 'choose'; render(); return; }
   if (action === 'switch-role') { eventSource?.close(); await fetch('/api/auth/logout', { method: 'POST' }); authAccount = null; signedIn = false; state = null; accountList = []; loginStage = 'choose'; modal = ''; view = 'overview'; const status = await fetch('/api/auth/status'); setupRequired = (await status.json()).setupRequired; render(); return; }
   if (action === 'navigate') { view = target.dataset.view; modal = ''; if (!visibleNav().some((item) => item.id === view)) view = 'overview'; if (view === 'accounts') await refreshAccounts(); render(); if (innerWidth <= 820) $('#sidebar')?.classList.remove('open'); return; }
+  if (action === 'approve-account') {
+    const id = target.dataset.id;
+    const employeeSelect = $(`[data-account-employee="${CSS.escape(id)}"]`);
+    if (employeeSelect && !employeeSelect.value) { setToast('Choose the matching employee profile before approving this request.', true); return; }
+    try {
+      const response = await fetch(`/api/accounts/${encodeURIComponent(id)}/approve`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ employeeId: employeeSelect?.value || '' }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Account request could not be approved.');
+      await refreshAccounts();
+      render();
+      setToast(`${result.account.name} can now sign in to the ${roleNames[result.account.role]} portal.`);
+    } catch (error) { setToast(error.message, true); }
+    return;
+  }
   if (action === 'sidebar-toggle') { $('#sidebar')?.classList.toggle('open'); return; }
   if (action === 'new-task') { if (['team-lead','admin'].includes(role)) showTaskForm(); return; }
   if (action === 'report-defect') { showBugForm(target.dataset.taskId || ''); return; }
@@ -741,6 +766,19 @@ document.addEventListener('submit', async (event) => {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Sign-in failed.');
       await acceptLogin(result.account);
+    } catch (error) { if (errorBox) errorBox.textContent = error.message; }
+    return;
+  }
+  if (kind === 'request-account') {
+    const errorBox = $('.form-error', form);
+    if (value(form, 'password') !== value(form, 'confirmPassword')) { if (errorBox) errorBox.textContent = 'The passwords do not match.'; return; }
+    try {
+      const response = await fetch('/api/auth/request-account', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ role, name: value(form, 'name'), email: value(form, 'email'), password: value(form, 'password') }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Account request could not be saved.');
+      loginNotice = 'Your account request is saved. The administrator must approve it before you can sign in.';
+      loginStage = 'portal';
+      render();
     } catch (error) { if (errorBox) errorBox.textContent = error.message; }
     return;
   }
