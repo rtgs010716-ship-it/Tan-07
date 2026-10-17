@@ -13,7 +13,21 @@ The app uses Node.js built-in modules, so there is no dependency install step. I
 
 ## Portal sign-in and accounts
 
-On first run, choose **Set up the first administrator** on the portal chooser. That one-time setup creates the administrator login. Sign in and open **Accounts** in the sidebar to create logins directly or review access requests. Each role has its own login page; non-administrator users can request an account from that portal's sign-in screen. Requests are saved to the database with a salted password hash and stay inactive until an administrator approves them. Employee requests must be linked to an active employee profile during approval. After setup, every portal requires the email and password for an active account assigned to that role. Use **Sign out** to return to the chooser.
+On first run, the app loads the fictional starter dataset in `data/demo-seed.json`; its nine demo accounts are ready to sign in. The administrator can open **Accounts** to create more logins directly or review access requests. Each role has its own login page; non-administrator users can request an account from that portal's sign-in screen. Requests are saved to the database with a salted password hash and stay inactive until an administrator approves them. Employee requests must be linked to an active employee profile during approval. After setup, every portal requires the email and password for an active account assigned to that role. Use **Sign out** to return to the chooser.
+
+All demo accounts use the password `ReworkDemo@2026`:
+
+| Portal | Demo email |
+| --- | --- |
+| Employee | `aisha.khan@example.com` |
+| Employee | `ravi.menon@example.com` |
+| Employee | `mina.patel@example.com` |
+| Employee | `dev.shah@example.com` |
+| Employee | `priya.nair@example.com` |
+| Team lead | `lead.demo@example.com` |
+| Manager | `manager.demo@example.com` |
+| Finance | `finance.demo@example.com` |
+| Administrator | `admin.demo@example.com` |
 
 The app supports these role-specific pages and workflows:
 
@@ -35,7 +49,7 @@ Quality analysis is explainable: the workspace calculates reopen rates, average 
 
 ## Reset demo data
 
-Stop the server, remove `data/workspace.json`, and start it again. The server will recreate the fictional sample workspace. The database file is ignored by Git.
+Stop the server, remove `data/workspace.json`, and start it again. The server will recreate the fictional sample workspace and demo accounts from `data/demo-seed.json`. The live database file is ignored by Git; the seed contains only fictional data and salted password hashes.
 
 ## Before real payroll use
 
@@ -44,5 +58,6 @@ Use an organization identity provider and a secured production database with pro
 ## Files
 
 - `server.mjs` — local HTTP API, persistent JSON database, workflow validation, payroll calculation, and live event stream.
+- `data/demo-seed.json` — fictional starter dataset and salted demo-account hashes used on first run or reset.
 - `public/` — responsive app views, UI, and role-specific actions.
 - `SAFE_BUILD_PROMPT.md` — reusable prompt with workflow, fairness, security, and calculation guardrails.

@@ -1,0 +1,1402 @@
+{
+  "version": 1,
+  "updatedAt": "2026-10-17T01:58:09.778Z",
+  "employees": [
+    {
+      "id": "emp-aisha",
+      "name": "Aisha Khan",
+      "title": "Senior engineer",
+      "initials": "AK",
+      "payBasis": "hourly",
+      "hourlyRate": 1250,
+      "dailyRate": 10000,
+      "monthlySalary": 186000,
+      "hoursPerDay": 8,
+      "active": true
+    },
+    {
+      "id": "emp-ravi",
+      "name": "Ravi Menon",
+      "title": "Product engineer",
+      "initials": "RM",
+      "payBasis": "hourly",
+      "hourlyRate": 1100,
+      "dailyRate": 8800,
+      "monthlySalary": 168000,
+      "hoursPerDay": 8,
+      "active": true
+    },
+    {
+      "id": "emp-mina",
+      "name": "Mina Patel",
+      "title": "Data engineer",
+      "initials": "MP",
+      "payBasis": "daily",
+      "hourlyRate": 1300,
+      "dailyRate": 10400,
+      "monthlySalary": 207000,
+      "hoursPerDay": 8,
+      "active": true
+    },
+    {
+      "id": "emp-dev",
+      "name": "Dev Shah",
+      "title": "QA engineer",
+      "initials": "DS",
+      "payBasis": "hourly",
+      "hourlyRate": 980,
+      "dailyRate": 7840,
+      "monthlySalary": 154000,
+      "hoursPerDay": 8,
+      "active": true
+    },
+    {
+      "id": "emp-priya",
+      "name": "Priya Nair",
+      "title": "Platform engineer",
+      "initials": "PN",
+      "payBasis": "hourly",
+      "hourlyRate": 1000,
+      "dailyRate": 8000,
+      "monthlySalary": 160000,
+      "hoursPerDay": 8,
+      "active": true
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T-401",
+      "module": "Billing API",
+      "project": "Meridian finance platform",
+      "title": "Reconcile multi-currency invoices",
+      "ownerId": "emp-aisha",
+      "status": "Under Fix",
+      "committedDate": "2026-10-05",
+      "completedAt": "2026-10-04T17:00:00.000Z",
+      "priority": "High",
+      "tags": [
+        "billing",
+        "invoices",
+        "reconciliation"
+      ],
+      "history": [
+        {
+          "id": "H-T-401-46aa942e",
+          "status": "Under Fix",
+          "at": "2026-10-13T12:00:00.000Z",
+          "by": "Leena Das",
+          "note": "Corrective repair assigned after manager review of B-401."
+        },
+        {
+          "id": "H-T-401-6016ae0a",
+          "status": "Reopened",
+          "at": "2026-10-12T12:00:00.000Z",
+          "by": "Maya Rao",
+          "note": "B-401 links this defect to the original invoice reconciliation delivery."
+        },
+        {
+          "id": "H-T-401-0e3a319f",
+          "status": "Completed",
+          "at": "2026-10-04T12:00:00.000Z",
+          "by": "Aisha Khan",
+          "note": "Delivered and accepted before the committed date."
+        },
+        {
+          "id": "H-T-401-80c2d537",
+          "status": "In Progress",
+          "at": "2026-10-01T12:00:00.000Z",
+          "by": "Aisha Khan",
+          "note": "Implementation started."
+        },
+        {
+          "id": "H-T-401-8dfdd819",
+          "status": "Assigned",
+          "at": "2026-09-28T12:00:00.000Z",
+          "by": "Leena Das",
+          "note": "Owner and committed delivery date recorded."
+        }
+      ]
+    },
+    {
+      "id": "T-403",
+      "module": "Ledger export",
+      "project": "Meridian finance platform",
+      "title": "Preserve all rows at export boundaries",
+      "ownerId": "emp-ravi",
+      "status": "Under Fix",
+      "committedDate": "2026-10-06",
+      "completedAt": "2026-10-03T16:30:00.000Z",
+      "priority": "High",
+      "tags": [
+        "ledger",
+        "export"
+      ],
+      "history": [
+        {
+          "id": "H-T-403-eaf602d4",
+          "status": "Under Fix",
+          "at": "2026-10-11T12:00:00.000Z",
+          "by": "Leena Das",
+          "note": "Fix assigned after original-delivery cause review for B-402."
+        },
+        {
+          "id": "H-T-403-4ddf5e0c",
+          "status": "Reopened",
+          "at": "2026-10-10T12:00:00.000Z",
+          "by": "Maya Rao",
+          "note": "B-402 is linked to the accepted ledger export delivery."
+        },
+        {
+          "id": "H-T-403-f57339d7",
+          "status": "Completed",
+          "at": "2026-10-03T12:00:00.000Z",
+          "by": "Ravi Menon",
+          "note": "Export delivered and accepted."
+        },
+        {
+          "id": "H-T-403-7ff6866b",
+          "status": "In Progress",
+          "at": "2026-09-30T12:00:00.000Z",
+          "by": "Ravi Menon",
+          "note": "Implementation started."
+        },
+        {
+          "id": "H-T-403-c0f11017",
+          "status": "Assigned",
+          "at": "2026-09-27T12:00:00.000Z",
+          "by": "Leena Das",
+          "note": "Owner and committed delivery date recorded."
+        }
+      ]
+    },
+    {
+      "id": "T-404",
+      "module": "Tax labels",
+      "project": "Meridian finance platform",
+      "title": "Render tenant tax labels",
+      "ownerId": "emp-ravi",
+      "status": "Closed",
+      "committedDate": "2026-10-10",
+      "completedAt": "2026-10-08T16:00:00.000Z",
+      "priority": "Medium",
+      "tags": [
+        "tax",
+        "tenant"
+      ],
+      "history": [
+        {
+          "id": "H-T-404-e3fd7ac6",
+          "status": "Closed",
+          "at": "2026-10-15T12:00:00.000Z",
+          "by": "Leena Das",
+          "note": "Client-requested label update verified and closed."
+        },
+        {
+          "id": "H-T-404-95bc5998",
+          "status": "Under Fix",
+          "at": "2026-10-13T12:00:00.000Z",
+          "by": "Leena Das",
+          "note": "Small wording update assigned after client scope change."
+        },
+        {
+          "id": "H-T-404-118b2c7e",
+          "status": "Reopened",
+          "at": "2026-10-12T12:00:00.000Z",
+          "by": "Maya Rao",
+          "note": "B-403 records a post-delivery client requirement."
+        },
+        {
+          "id": "H-T-404-a6eaa444",
+          "status": "Completed",
+          "at": "2026-10-08T12:00:00.000Z",
+          "by": "Ravi Menon",
+          "note": "Original tax label scope delivered and accepted."
+        },
+        {
+          "id": "H-T-404-58209e75",
+          "status": "In Progress",
+          "at": "2026-10-05T12:00:00.000Z",
+          "by": "Ravi Menon",
+          "note": "Implementation started."
+        },
+        {
+          "id": "H-T-404-e690bd65",
+          "status": "Assigned",
+          "at": "2026-10-01T12:00:00.000Z",
+          "by": "Leena Das",
+          "note": "Owner and committed delivery date recorded."
+        }
+      ]
+    },
+    {
+      "id": "T-405",
+      "module": "Access controls",
+      "project": "Meridian finance platform",
+      "title": "Refresh scoped access after role updates",
+      "ownerId": "emp-mina",
+      "status": "Under Fix",
+      "committedDate": "2026-10-08",
+      "completedAt": "2026-10-06T15:45:00.000Z",
+      "priority": "High",
+      "tags": [
+        "access",
+        "security",
+        "permissions"
+      ],
+      "history": [
+        {
+          "id": "H-T-405-82529fc0",
+          "status": "Under Fix",
+          "at": "2026-10-14T12:00:00.000Z",
+          "by": "Leena Das",
+          "note": "Corrective repair assigned after B-404 cause review."
+        },
+        {
+          "id": "H-T-405-7a65788b",
+          "status": "Reopened",
+          "at": "2026-10-12T12:00:00.000Z",
+          "by": "Maya Rao",
+          "note": "B-404 is linked to Mina Patel’s original access-control delivery."
+        },
+        {
+          "id": "H-T-405-c5ca5da5",
+          "status": "Completed",
+          "at": "2026-10-06T12:00:00.000Z",
+          "by": "Mina Patel",
+          "note": "Role-scoped access was delivered and accepted."
+        },
+        {
+          "id": "H-T-405-286ea081",
+          "status": "In Progress",
+          "at": "2026-10-02T12:00:00.000Z",
+          "by": "Mina Patel",
+          "note": "Implementation started."
+        },
+        {
+          "id": "H-T-405-4ac81336",
+          "status": "Assigned",
+          "at": "2026-09-29T12:00:00.000Z",
+          "by": "Leena Das",
+          "note": "Owner and committed delivery date recorded."
+        }
+      ]
+    },
+    {
+      "id": "T-406",
+      "module": "Reconciliation alerts",
+      "project": "Meridian finance platform",
+      "title": "Prevent duplicate alerts after retries",
+      "ownerId": "emp-dev",
+      "status": "Under Fix",
+      "committedDate": "2026-10-10",
+      "completedAt": "2026-10-07T17:20:00.000Z",
+      "priority": "High",
+      "tags": [
+        "alerts",
+        "retries"
+      ],
+      "history": [
+        {
+          "id": "H-T-406-428eafd6",
+          "status": "Under Fix",
+          "at": "2026-10-14T12:00:00.000Z",
+          "by": "Leena Das",
+          "note": "Corrective fix assigned after B-405 review."
+        },
+        {
+          "id": "H-T-406-d75a49e8",
+          "status": "Reopened",
+          "at": "2026-10-13T12:00:00.000Z",
+          "by": "Maya Rao",
+          "note": "B-405 links the retry defect to the delivered alert behavior."
+        },
+        {
+          "id": "H-T-406-4cd0ce38",
+          "status": "Completed",
+          "at": "2026-10-07T12:00:00.000Z",
+          "by": "Dev Shah",
+          "note": "Alert module delivered and accepted."
+        },
+        {
+          "id": "H-T-406-6103c9a4",
+          "status": "In Progress",
+          "at": "2026-10-03T12:00:00.000Z",
+          "by": "Dev Shah",
+          "note": "Implementation started."
+        },
+        {
+          "id": "H-T-406-9be71eac",
+          "status": "Assigned",
+          "at": "2026-09-30T12:00:00.000Z",
+          "by": "Leena Das",
+          "note": "Owner and committed delivery date recorded."
+        }
+      ]
+    },
+    {
+      "id": "T-407",
+      "module": "Dashboard labels",
+      "project": "Meridian finance platform",
+      "title": "Update the reconciliation tooltip copy",
+      "ownerId": "emp-dev",
+      "status": "Closed",
+      "committedDate": "2026-10-10",
+      "completedAt": "2026-10-09T16:00:00.000Z",
+      "priority": "Low",
+      "tags": [
+        "dashboard",
+        "copy"
+      ],
+      "history": [
+        {
+          "id": "H-T-407-8c29056f",
+          "status": "Closed",
+          "at": "2026-10-16T12:00:00.000Z",
+          "by": "Leena Das",
+          "note": "Terminology update verified; original delivery remains accepted."
+        },
+        {
+          "id": "H-T-407-c36873b4",
+          "status": "Under Fix",
+          "at": "2026-10-15T12:00:00.000Z",
+          "by": "Leena Das",
+          "note": "Client copy change assigned; no original defect found."
+        },
+        {
+          "id": "H-T-407-69ac8b4b",
+          "status": "Reopened",
+          "at": "2026-10-15T12:00:00.000Z",
+          "by": "Maya Rao",
+          "note": "B-406 records a wording change requested after delivery."
+        },
+        {
+          "id": "H-T-407-9a05f92f",
+          "status": "Completed",
+          "at": "2026-10-09T12:00:00.000Z",
+          "by": "Dev Shah",
+          "note": "Dashboard delivered and accepted."
+        },
+        {
+          "id": "H-T-407-6f3fd0ec",
+          "status": "In Progress",
+          "at": "2026-10-06T12:00:00.000Z",
+          "by": "Dev Shah",
+          "note": "Implementation started."
+        },
+        {
+          "id": "H-T-407-b182e4e6",
+          "status": "Assigned",
+          "at": "2026-10-02T12:00:00.000Z",
+          "by": "Leena Das",
+          "note": "Owner and committed delivery date recorded."
+        }
+      ]
+    },
+    {
+      "id": "T-408",
+      "module": "Payroll export",
+      "project": "Meridian finance platform",
+      "title": "Preserve timezone boundary in payroll summary",
+      "ownerId": "emp-priya",
+      "status": "Under Fix",
+      "committedDate": "2026-10-11",
+      "completedAt": "2026-10-09T17:00:00.000Z",
+      "priority": "High",
+      "tags": [
+        "payroll",
+        "timezone",
+        "export"
+      ],
+      "history": [
+        {
+          "id": "H-T-408-66c8a4b6",
+          "status": "Under Fix",
+          "at": "2026-10-15T12:00:00.000Z",
+          "by": "Leena Das",
+          "note": "B-407 fix assigned after original-delivery review."
+        },
+        {
+          "id": "H-T-408-eef9f95a",
+          "status": "Reopened",
+          "at": "2026-10-14T12:00:00.000Z",
+          "by": "Maya Rao",
+          "note": "B-407 links the date-boundary defect to the delivered payroll export."
+        },
+        {
+          "id": "H-T-408-8f909ac7",
+          "status": "Completed",
+          "at": "2026-10-09T12:00:00.000Z",
+          "by": "Priya Nair",
+          "note": "Payroll summary delivered and accepted."
+        },
+        {
+          "id": "H-T-408-6b9b88f0",
+          "status": "In Progress",
+          "at": "2026-10-05T12:00:00.000Z",
+          "by": "Priya Nair",
+          "note": "Implementation started."
+        },
+        {
+          "id": "H-T-408-fc086968",
+          "status": "Assigned",
+          "at": "2026-10-02T12:00:00.000Z",
+          "by": "Leena Das",
+          "note": "Owner and committed delivery date recorded."
+        }
+      ]
+    },
+    {
+      "id": "T-409",
+      "module": "Regional exports",
+      "project": "Meridian finance platform",
+      "title": "Prepare the next regional payroll export",
+      "ownerId": "emp-priya",
+      "status": "Assigned",
+      "committedDate": "2026-10-24",
+      "completedAt": null,
+      "priority": "Medium",
+      "tags": [
+        "payroll",
+        "regional"
+      ],
+      "history": [
+        {
+          "id": "H-T-409-114701be",
+          "status": "Assigned",
+          "at": "2026-10-16T12:00:00.000Z",
+          "by": "Leena Das",
+          "note": "New delivery with an owner and committed date."
+        }
+      ]
+    },
+    {
+      "id": "T-410",
+      "module": "Access audit",
+      "project": "Meridian finance platform",
+      "title": "Add actor context to access events",
+      "ownerId": "emp-ravi",
+      "status": "In Progress",
+      "committedDate": "2026-10-25",
+      "completedAt": null,
+      "priority": "Medium",
+      "tags": [
+        "audit",
+        "access"
+      ],
+      "history": [
+        {
+          "id": "H-T-410-7508c636",
+          "status": "In Progress",
+          "at": "2026-10-10T12:00:00.000Z",
+          "by": "Ravi Menon",
+          "note": "Implementation started."
+        },
+        {
+          "id": "H-T-410-23d75151",
+          "status": "Assigned",
+          "at": "2026-10-09T12:00:00.000Z",
+          "by": "Leena Das",
+          "note": "Owner and committed date recorded."
+        }
+      ]
+    },
+    {
+      "id": "T-411",
+      "module": "Approval queue",
+      "project": "Meridian finance platform",
+      "title": "Add filters to the approval queue",
+      "ownerId": "emp-aisha",
+      "status": "Completed",
+      "committedDate": "2026-10-10",
+      "completedAt": "2026-10-10T17:00:00.000Z",
+      "priority": "Medium",
+      "tags": [
+        "workflow",
+        "filters"
+      ],
+      "history": [
+        {
+          "id": "H-T-411-ff96ede5",
+          "status": "Completed",
+          "at": "2026-10-10T12:00:00.000Z",
+          "by": "Aisha Khan",
+          "note": "Regular feature delivered and accepted."
+        },
+        {
+          "id": "H-T-411-ff2054e1",
+          "status": "In Progress",
+          "at": "2026-10-07T12:00:00.000Z",
+          "by": "Aisha Khan",
+          "note": "Implementation started."
+        },
+        {
+          "id": "H-T-411-fe36f2e6",
+          "status": "Assigned",
+          "at": "2026-10-03T12:00:00.000Z",
+          "by": "Leena Das",
+          "note": "Owner and committed date recorded."
+        }
+      ]
+    },
+    {
+      "id": "T-412",
+      "module": "Support ledger",
+      "project": "Meridian finance platform",
+      "title": "Reconcile the weekly support ledger",
+      "ownerId": "emp-ravi",
+      "status": "Completed",
+      "committedDate": "2026-10-08",
+      "completedAt": "2026-10-07T16:00:00.000Z",
+      "priority": "Low",
+      "tags": [
+        "ledger",
+        "support"
+      ],
+      "history": [
+        {
+          "id": "H-T-412-c3efedfa",
+          "status": "Completed",
+          "at": "2026-10-07T12:00:00.000Z",
+          "by": "Ravi Menon",
+          "note": "Regular feature delivered and accepted."
+        },
+        {
+          "id": "H-T-412-5abdd9e3",
+          "status": "In Progress",
+          "at": "2026-10-04T12:00:00.000Z",
+          "by": "Ravi Menon",
+          "note": "Implementation started."
+        },
+        {
+          "id": "H-T-412-ef0f298a",
+          "status": "Assigned",
+          "at": "2026-10-01T12:00:00.000Z",
+          "by": "Leena Das",
+          "note": "Owner and committed date recorded."
+        }
+      ]
+    },
+    {
+      "id": "T-413",
+      "module": "Dataset refresh",
+      "project": "Meridian finance platform",
+      "title": "Schedule the daily dataset refresh",
+      "ownerId": "emp-mina",
+      "status": "Completed",
+      "committedDate": "2026-10-09",
+      "completedAt": "2026-10-08T16:00:00.000Z",
+      "priority": "Medium",
+      "tags": [
+        "data",
+        "scheduler"
+      ],
+      "history": [
+        {
+          "id": "H-T-413-9545e427",
+          "status": "Completed",
+          "at": "2026-10-08T12:00:00.000Z",
+          "by": "Mina Patel",
+          "note": "Regular feature delivered and accepted."
+        },
+        {
+          "id": "H-T-413-a6e6572c",
+          "status": "In Progress",
+          "at": "2026-10-05T12:00:00.000Z",
+          "by": "Mina Patel",
+          "note": "Implementation started."
+        },
+        {
+          "id": "H-T-413-c084d32a",
+          "status": "Assigned",
+          "at": "2026-10-02T12:00:00.000Z",
+          "by": "Leena Das",
+          "note": "Owner and committed date recorded."
+        }
+      ]
+    },
+    {
+      "id": "T-414",
+      "module": "Reconciliation dashboard",
+      "project": "Meridian finance platform",
+      "title": "Add quality totals to the dashboard",
+      "ownerId": "emp-dev",
+      "status": "Completed",
+      "committedDate": "2026-10-10",
+      "completedAt": "2026-10-09T17:00:00.000Z",
+      "priority": "Medium",
+      "tags": [
+        "quality",
+        "dashboard"
+      ],
+      "history": [
+        {
+          "id": "H-T-414-d0e24ef0",
+          "status": "Completed",
+          "at": "2026-10-09T12:00:00.000Z",
+          "by": "Dev Shah",
+          "note": "Regular feature delivered and accepted."
+        },
+        {
+          "id": "H-T-414-2ee4be9d",
+          "status": "In Progress",
+          "at": "2026-10-06T12:00:00.000Z",
+          "by": "Dev Shah",
+          "note": "Implementation started."
+        },
+        {
+          "id": "H-T-414-67630001",
+          "status": "Assigned",
+          "at": "2026-10-03T12:00:00.000Z",
+          "by": "Leena Das",
+          "note": "Owner and committed date recorded."
+        }
+      ]
+    },
+    {
+      "id": "T-415",
+      "module": "Payslip layout",
+      "project": "Meridian finance platform",
+      "title": "Improve the payslip detail layout",
+      "ownerId": "emp-priya",
+      "status": "Completed",
+      "committedDate": "2026-10-12",
+      "completedAt": "2026-10-11T16:30:00.000Z",
+      "priority": "Medium",
+      "tags": [
+        "payroll",
+        "payslip"
+      ],
+      "history": [
+        {
+          "id": "H-T-415-a636eb2e",
+          "status": "Completed",
+          "at": "2026-10-11T12:00:00.000Z",
+          "by": "Priya Nair",
+          "note": "Regular feature delivered and accepted."
+        },
+        {
+          "id": "H-T-415-7253856b",
+          "status": "In Progress",
+          "at": "2026-10-08T12:00:00.000Z",
+          "by": "Priya Nair",
+          "note": "Implementation started."
+        },
+        {
+          "id": "H-T-415-dba954be",
+          "status": "Assigned",
+          "at": "2026-10-04T12:00:00.000Z",
+          "by": "Leena Das",
+          "note": "Owner and committed date recorded."
+        }
+      ]
+    }
+  ],
+  "bugs": [
+    {
+      "id": "B-401",
+      "taskId": "T-401",
+      "title": "Currency rounding drift",
+      "description": "Partial invoice payments produce a rounding difference against the accepted conversion rules.",
+      "severity": "High",
+      "foundAt": "2026-10-12T09:30:00.000Z",
+      "reportedBy": "emp-dev",
+      "status": "Under Fix",
+      "cause": "original",
+      "causeReason": "Reproduced against the signed-off currency conversion acceptance criteria.",
+      "reviewedBy": "Maya Rao",
+      "reviewedAt": "2026-10-13T09:00:00.000Z",
+      "closedAt": null,
+      "tags": [
+        "billing",
+        "rounding"
+      ]
+    },
+    {
+      "id": "B-402",
+      "taskId": "T-403",
+      "title": "Export boundary row omitted",
+      "description": "The final record is missing when a ledger export ends exactly at a page boundary.",
+      "severity": "High",
+      "foundAt": "2026-10-10T10:15:00.000Z",
+      "reportedBy": "emp-aisha",
+      "status": "Under Fix",
+      "cause": "original",
+      "causeReason": "The export boundary case is included in the original delivery acceptance criteria.",
+      "reviewedBy": "Maya Rao",
+      "reviewedAt": "2026-10-11T09:30:00.000Z",
+      "closedAt": null,
+      "tags": [
+        "ledger",
+        "pagination"
+      ]
+    },
+    {
+      "id": "B-403",
+      "taskId": "T-404",
+      "title": "New tenant tax label",
+      "description": "A client requested a different label for a new tenant-specific tax category after acceptance.",
+      "severity": "Low",
+      "foundAt": "2026-10-12T11:00:00.000Z",
+      "reportedBy": "emp-ravi",
+      "status": "Closed",
+      "cause": "external",
+      "causeReason": "Client requirement was added after delivery and is outside the original agreed scope.",
+      "reviewedBy": "Maya Rao",
+      "reviewedAt": "2026-10-13T10:00:00.000Z",
+      "closedAt": "2026-10-15T15:00:00.000Z",
+      "tags": [
+        "client-change",
+        "tax"
+      ]
+    },
+    {
+      "id": "B-404",
+      "taskId": "T-405",
+      "title": "Role update leaves stale access",
+      "description": "A scoped permission remains cached after an employee role changes.",
+      "severity": "High",
+      "foundAt": "2026-10-12T13:00:00.000Z",
+      "reportedBy": "emp-dev",
+      "status": "Under Fix",
+      "cause": "original",
+      "causeReason": "The accepted access-control behavior requires role changes to take effect immediately.",
+      "reviewedBy": "Maya Rao",
+      "reviewedAt": "2026-10-13T11:00:00.000Z",
+      "closedAt": null,
+      "tags": [
+        "security",
+        "permissions"
+      ]
+    },
+    {
+      "id": "B-405",
+      "taskId": "T-406",
+      "title": "Duplicate alert after retry",
+      "description": "A retry of a failed reconciliation sends the same alert twice.",
+      "severity": "High",
+      "foundAt": "2026-10-13T09:45:00.000Z",
+      "reportedBy": "emp-priya",
+      "status": "Under Fix",
+      "cause": "original",
+      "causeReason": "Retry idempotency was part of the delivered alert acceptance criteria.",
+      "reviewedBy": "Maya Rao",
+      "reviewedAt": "2026-10-14T09:30:00.000Z",
+      "closedAt": null,
+      "tags": [
+        "alerts",
+        "retry"
+      ]
+    },
+    {
+      "id": "B-406",
+      "taskId": "T-407",
+      "title": "Tooltip wording change",
+      "description": "The client requested updated terminology for the reconciliation tooltip after sign-off.",
+      "severity": "Low",
+      "foundAt": "2026-10-15T09:00:00.000Z",
+      "reportedBy": "emp-priya",
+      "status": "Closed",
+      "cause": "external",
+      "causeReason": "This is a post-acceptance copy change; no defect in the original delivery was found.",
+      "reviewedBy": "Maya Rao",
+      "reviewedAt": "2026-10-15T10:30:00.000Z",
+      "closedAt": "2026-10-16T15:30:00.000Z",
+      "tags": [
+        "client-change",
+        "copy"
+      ]
+    },
+    {
+      "id": "B-407",
+      "taskId": "T-408",
+      "title": "Payroll export timezone boundary",
+      "description": "A payroll summary generated near midnight groups one record under the wrong date.",
+      "severity": "High",
+      "foundAt": "2026-10-14T10:00:00.000Z",
+      "reportedBy": "emp-dev",
+      "status": "Under Fix",
+      "cause": "original",
+      "causeReason": "The delivered export must retain the configured workspace timezone at day boundaries.",
+      "reviewedBy": "Maya Rao",
+      "reviewedAt": "2026-10-15T09:15:00.000Z",
+      "closedAt": null,
+      "tags": [
+        "payroll",
+        "timezone"
+      ]
+    }
+  ],
+  "timeEntries": [
+    {
+      "id": "TIME-4101",
+      "employeeId": "emp-aisha",
+      "taskId": "T-401",
+      "bugId": "B-401",
+      "type": "corrective",
+      "hours": 1.5,
+      "note": "Reproduced the rounding issue and added a regression case.",
+      "date": "2026-10-14",
+      "status": "approved",
+      "createdAt": "2026-10-14T10:00:00.000Z",
+      "reviewedBy": "Leena Das",
+      "reviewedAt": "2026-10-14T16:00:00.000Z",
+      "reviewNote": "Linked defect, time note, and review evidence checked."
+    },
+    {
+      "id": "TIME-4102",
+      "employeeId": "emp-ravi",
+      "taskId": "T-403",
+      "bugId": "B-402",
+      "type": "corrective",
+      "hours": 0.5,
+      "note": "Patched the final-row pagination boundary.",
+      "date": "2026-10-12",
+      "status": "approved",
+      "createdAt": "2026-10-12T10:00:00.000Z",
+      "reviewedBy": "Leena Das",
+      "reviewedAt": "2026-10-12T16:00:00.000Z",
+      "reviewNote": "Linked defect, time note, and review evidence checked."
+    },
+    {
+      "id": "TIME-4103",
+      "employeeId": "emp-ravi",
+      "taskId": "T-404",
+      "bugId": "B-403",
+      "type": "corrective",
+      "hours": 1,
+      "note": "Updated the new client-requested tenant label.",
+      "date": "2026-10-14",
+      "status": "approved",
+      "createdAt": "2026-10-14T10:00:00.000Z",
+      "reviewedBy": "Leena Das",
+      "reviewedAt": "2026-10-14T16:00:00.000Z",
+      "reviewNote": "Accepted as a separately reviewed external scope change; excluded from deductions."
+    },
+    {
+      "id": "TIME-4104",
+      "employeeId": "emp-mina",
+      "taskId": "T-405",
+      "bugId": "B-404",
+      "type": "corrective",
+      "hours": 2.25,
+      "note": "Invalidated the scoped permission cache on role update.",
+      "date": "2026-10-14",
+      "status": "approved",
+      "createdAt": "2026-10-14T10:00:00.000Z",
+      "reviewedBy": "Leena Das",
+      "reviewedAt": "2026-10-14T16:00:00.000Z",
+      "reviewNote": "Linked defect, time note, and review evidence checked."
+    },
+    {
+      "id": "TIME-4105",
+      "employeeId": "emp-dev",
+      "taskId": "T-406",
+      "bugId": "B-405",
+      "type": "corrective",
+      "hours": 3,
+      "note": "Made retry delivery idempotent and added regression coverage.",
+      "date": "2026-10-15",
+      "status": "approved",
+      "createdAt": "2026-10-15T10:00:00.000Z",
+      "reviewedBy": "Leena Das",
+      "reviewedAt": "2026-10-15T16:00:00.000Z",
+      "reviewNote": "Linked defect, time note, and review evidence checked."
+    },
+    {
+      "id": "TIME-4106",
+      "employeeId": "emp-dev",
+      "taskId": "T-407",
+      "bugId": "B-406",
+      "type": "corrective",
+      "hours": 1,
+      "note": "Applied the post-acceptance client terminology update.",
+      "date": "2026-10-16",
+      "status": "approved",
+      "createdAt": "2026-10-16T10:00:00.000Z",
+      "reviewedBy": "Leena Das",
+      "reviewedAt": "2026-10-16T16:00:00.000Z",
+      "reviewNote": "Approved as an external copy change; excluded from deductions."
+    },
+    {
+      "id": "TIME-4107",
+      "employeeId": "emp-priya",
+      "taskId": "T-408",
+      "bugId": "B-407",
+      "type": "corrective",
+      "hours": 0.75,
+      "note": "Corrected timezone handling at the payroll date boundary.",
+      "date": "2026-10-15",
+      "status": "approved",
+      "createdAt": "2026-10-15T10:00:00.000Z",
+      "reviewedBy": "Leena Das",
+      "reviewedAt": "2026-10-15T16:00:00.000Z",
+      "reviewNote": "Linked defect, time note, and review evidence checked."
+    },
+    {
+      "id": "TIME-4108",
+      "employeeId": "emp-priya",
+      "taskId": "T-408",
+      "bugId": "B-407",
+      "type": "corrective",
+      "hours": 0.25,
+      "note": "An extra investigation interval was submitted without supporting work notes.",
+      "date": "2026-10-15",
+      "status": "rejected",
+      "createdAt": "2026-10-15T10:00:00.000Z",
+      "reviewedBy": "Leena Das",
+      "reviewedAt": "2026-10-15T16:00:00.000Z",
+      "reviewNote": "Rejected: the submitted quarter-hour was not supported by the linked fix notes."
+    },
+    {
+      "id": "TIME-4201",
+      "employeeId": "emp-aisha",
+      "taskId": "T-411",
+      "bugId": null,
+      "type": "regular",
+      "hours": 4,
+      "note": "Approval queue filters and delivery notes.",
+      "date": "2026-10-10",
+      "status": "approved",
+      "createdAt": "2026-10-10T09:00:00.000Z",
+      "reviewedBy": "Leena Das",
+      "reviewedAt": "2026-10-10T17:00:00.000Z",
+      "reviewNote": "Regular delivery work; kept separate from corrective maintenance."
+    },
+    {
+      "id": "TIME-4202",
+      "employeeId": "emp-ravi",
+      "taskId": "T-412",
+      "bugId": null,
+      "type": "regular",
+      "hours": 5,
+      "note": "Weekly support-ledger reconciliation.",
+      "date": "2026-10-07",
+      "status": "approved",
+      "createdAt": "2026-10-07T09:00:00.000Z",
+      "reviewedBy": "Leena Das",
+      "reviewedAt": "2026-10-07T17:00:00.000Z",
+      "reviewNote": "Regular delivery work; kept separate from corrective maintenance."
+    },
+    {
+      "id": "TIME-4203",
+      "employeeId": "emp-mina",
+      "taskId": "T-413",
+      "bugId": null,
+      "type": "regular",
+      "hours": 6,
+      "note": "Dataset refresh scheduler and monitoring.",
+      "date": "2026-10-08",
+      "status": "approved",
+      "createdAt": "2026-10-08T09:00:00.000Z",
+      "reviewedBy": "Leena Das",
+      "reviewedAt": "2026-10-08T17:00:00.000Z",
+      "reviewNote": "Regular delivery work; kept separate from corrective maintenance."
+    },
+    {
+      "id": "TIME-4204",
+      "employeeId": "emp-dev",
+      "taskId": "T-414",
+      "bugId": null,
+      "type": "regular",
+      "hours": 4,
+      "note": "Quality totals for the reconciliation dashboard.",
+      "date": "2026-10-09",
+      "status": "approved",
+      "createdAt": "2026-10-09T09:00:00.000Z",
+      "reviewedBy": "Leena Das",
+      "reviewedAt": "2026-10-09T17:00:00.000Z",
+      "reviewNote": "Regular delivery work; kept separate from corrective maintenance."
+    },
+    {
+      "id": "TIME-4205",
+      "employeeId": "emp-priya",
+      "taskId": "T-415",
+      "bugId": null,
+      "type": "regular",
+      "hours": 3,
+      "note": "Payslip detail layout and accessibility updates.",
+      "date": "2026-10-11",
+      "status": "approved",
+      "createdAt": "2026-10-11T09:00:00.000Z",
+      "reviewedBy": "Leena Das",
+      "reviewedAt": "2026-10-11T17:00:00.000Z",
+      "reviewNote": "Regular delivery work; kept separate from corrective maintenance."
+    }
+  ],
+  "notices": [
+    {
+      "id": "notice-aisha",
+      "employeeId": "emp-aisha",
+      "title": "November payroll estimate ready",
+      "message": "1.50 approved corrective hours linked to B-401 calculate to ₹1,875 for November payroll. Regular hours are kept separate.",
+      "at": "2026-10-14T16:05:00.000Z",
+      "read": false,
+      "type": "payroll"
+    },
+    {
+      "id": "notice-ravi",
+      "employeeId": "emp-ravi",
+      "title": "November payroll estimate ready",
+      "message": "0.50 approved original-delivery hour linked to B-402 calculates to ₹550. The 1.00 hour for B-403 is an external client change and is excluded.",
+      "at": "2026-10-14T16:05:00.000Z",
+      "read": false,
+      "type": "payroll"
+    },
+    {
+      "id": "notice-mina",
+      "employeeId": "emp-mina",
+      "title": "November payroll estimate ready",
+      "message": "2.25 approved corrective hours linked to B-404 calculate to ₹2,925 using your ₹10,400 daily rate ÷ 8 hours. The calculation uses the hourly equivalent of ₹1,300.",
+      "at": "2026-10-14T16:05:00.000Z",
+      "read": false,
+      "type": "payroll"
+    },
+    {
+      "id": "notice-dev",
+      "employeeId": "emp-dev",
+      "title": "November payroll estimate ready",
+      "message": "3.00 approved original-delivery hours linked to B-405 calculate to ₹2,940. The 1.00 hour for external client change B-406 is excluded.",
+      "at": "2026-10-16T16:05:00.000Z",
+      "read": false,
+      "type": "payroll"
+    },
+    {
+      "id": "notice-priya",
+      "employeeId": "emp-priya",
+      "title": "November payroll estimate ready",
+      "message": "0.75 approved corrective hour linked to B-407 calculates to ₹750. A separate 0.25-hour entry was rejected with a review reason and is excluded.",
+      "at": "2026-10-15T16:05:00.000Z",
+      "read": false,
+      "type": "payroll"
+    }
+  ],
+  "audit": [
+    {
+      "id": "239e0645-0f4a-47c7-86b7-21682834d5af",
+      "at": "2026-10-16T16:05:00.000Z",
+      "actor": "Rework Ledger",
+      "role": "system",
+      "action": "Advance payroll notice issued",
+      "detail": "Dev Shah · 3.00 approved original-delivery hours linked to B-405 calculate to ₹2,940. The 1.00 hour for external client change B-406 is excluded."
+    },
+    {
+      "id": "6dfc55e7-7f76-4c5e-ac8e-76d9492956a0",
+      "at": "2026-10-16T16:00:00.000Z",
+      "actor": "Leena Das",
+      "role": "team-lead",
+      "action": "External corrective hours approved",
+      "detail": "1.00 hours · B-406 · Approved as an external copy change; excluded from deductions."
+    },
+    {
+      "id": "2672aa97-6dbf-4e48-b964-c5a455354c6b",
+      "at": "2026-10-15T16:05:00.000Z",
+      "actor": "Rework Ledger",
+      "role": "system",
+      "action": "Advance payroll notice issued",
+      "detail": "Priya Nair · 0.75 approved corrective hour linked to B-407 calculates to ₹750. A separate 0.25-hour entry was rejected with a review reason and is excluded."
+    },
+    {
+      "id": "8995e0f8-626d-4c66-b83b-0389e2b5df55",
+      "at": "2026-10-15T16:00:00.000Z",
+      "actor": "Leena Das",
+      "role": "team-lead",
+      "action": "Corrective hours approved",
+      "detail": "3.00 hours · B-405 · Linked defect, time note, and review evidence checked."
+    },
+    {
+      "id": "546c9564-047a-4c0d-83f2-ac80730d02e0",
+      "at": "2026-10-15T16:00:00.000Z",
+      "actor": "Leena Das",
+      "role": "team-lead",
+      "action": "Corrective hours approved",
+      "detail": "0.75 hours · B-407 · Linked defect, time note, and review evidence checked."
+    },
+    {
+      "id": "205b2b71-27bd-46e9-86d0-84a6dc22cc8a",
+      "at": "2026-10-15T16:00:00.000Z",
+      "actor": "Leena Das",
+      "role": "team-lead",
+      "action": "Corrective hours rejected",
+      "detail": "0.25 hours · B-407 · Rejected: the submitted quarter-hour was not supported by the linked fix notes."
+    },
+    {
+      "id": "c7ef7c8f-075c-4453-a0cd-9105e1b5c7b4",
+      "at": "2026-10-15T10:30:00.000Z",
+      "actor": "Maya Rao",
+      "role": "manager",
+      "action": "External change confirmed",
+      "detail": "B-406 · Excluded from payroll deduction · This is a post-acceptance copy change; no defect in the original delivery was found."
+    },
+    {
+      "id": "6662f3df-ffb8-4623-97ed-1c8e00ba55fd",
+      "at": "2026-10-15T09:15:00.000Z",
+      "actor": "Maya Rao",
+      "role": "manager",
+      "action": "Cause confirmed",
+      "detail": "B-407 · Original delivery · The delivered export must retain the configured workspace timezone at day boundaries."
+    },
+    {
+      "id": "dfd12847-f890-4dab-aad9-3ac9dec9c52e",
+      "at": "2026-10-15T09:00:00.000Z",
+      "actor": "Priya Nair",
+      "role": "employee",
+      "action": "Defect reported",
+      "detail": "B-406 · T-407 · Tooltip wording change; original delivery owner Dev Shah."
+    },
+    {
+      "id": "1235f2b5-610e-4cdc-ba95-7763a8fe489e",
+      "at": "2026-10-14T16:05:00.000Z",
+      "actor": "Rework Ledger",
+      "role": "system",
+      "action": "Advance payroll notice issued",
+      "detail": "Aisha Khan · 1.50 approved corrective hours linked to B-401 calculate to ₹1,875 for November payroll. Regular hours are kept separate."
+    },
+    {
+      "id": "aac11ac2-1ccf-4fd4-80ed-69ad1c81eed2",
+      "at": "2026-10-14T16:05:00.000Z",
+      "actor": "Rework Ledger",
+      "role": "system",
+      "action": "Advance payroll notice issued",
+      "detail": "Ravi Menon · 0.50 approved original-delivery hour linked to B-402 calculates to ₹550. The 1.00 hour for B-403 is an external client change and is excluded."
+    },
+    {
+      "id": "fdcb9784-04b1-460b-898a-5048a502091f",
+      "at": "2026-10-14T16:05:00.000Z",
+      "actor": "Rework Ledger",
+      "role": "system",
+      "action": "Advance payroll notice issued",
+      "detail": "Mina Patel · 2.25 approved corrective hours linked to B-404 calculate to ₹2,925 using your ₹10,400 daily rate ÷ 8 hours. The calculation uses the hourly equivalent of ₹1,300."
+    },
+    {
+      "id": "786376e2-01e9-4bcd-843e-7d5d6502757d",
+      "at": "2026-10-14T16:00:00.000Z",
+      "actor": "Leena Das",
+      "role": "team-lead",
+      "action": "Corrective hours approved",
+      "detail": "1.50 hours · B-401 · Linked defect, time note, and review evidence checked."
+    },
+    {
+      "id": "a34d1bd3-7238-46d0-835c-408c770083bf",
+      "at": "2026-10-14T16:00:00.000Z",
+      "actor": "Leena Das",
+      "role": "team-lead",
+      "action": "External corrective hours approved",
+      "detail": "1.00 hours · B-403 · Accepted as a separately reviewed external scope change; excluded from deductions."
+    },
+    {
+      "id": "2bcade2e-e7e3-4b69-80c4-76b395fe4ac5",
+      "at": "2026-10-14T16:00:00.000Z",
+      "actor": "Leena Das",
+      "role": "team-lead",
+      "action": "Corrective hours approved",
+      "detail": "2.25 hours · B-404 · Linked defect, time note, and review evidence checked."
+    },
+    {
+      "id": "87f13fb3-5849-4a74-ac49-3621fcab8e14",
+      "at": "2026-10-14T10:00:00.000Z",
+      "actor": "Dev Shah",
+      "role": "employee",
+      "action": "Defect reported",
+      "detail": "B-407 · T-408 · Payroll export timezone boundary; original delivery owner Priya Nair."
+    },
+    {
+      "id": "c8b3fba8-7aab-45ca-873c-ebce6636e755",
+      "at": "2026-10-14T09:30:00.000Z",
+      "actor": "Maya Rao",
+      "role": "manager",
+      "action": "Cause confirmed",
+      "detail": "B-405 · Original delivery · Retry idempotency was part of the delivered alert acceptance criteria."
+    },
+    {
+      "id": "9b81d8d3-1b95-4d22-8055-867de59c24f8",
+      "at": "2026-10-13T11:00:00.000Z",
+      "actor": "Maya Rao",
+      "role": "manager",
+      "action": "Cause confirmed",
+      "detail": "B-404 · Original delivery · The accepted access-control behavior requires role changes to take effect immediately."
+    },
+    {
+      "id": "b1a1dec0-d32c-4ad0-a5f9-6920628b83b4",
+      "at": "2026-10-13T10:00:00.000Z",
+      "actor": "Maya Rao",
+      "role": "manager",
+      "action": "External change confirmed",
+      "detail": "B-403 · Excluded from payroll deduction · Client requirement was added after delivery and is outside the original agreed scope."
+    },
+    {
+      "id": "96b24be0-aee8-4121-ba94-06685642c775",
+      "at": "2026-10-13T09:45:00.000Z",
+      "actor": "Priya Nair",
+      "role": "employee",
+      "action": "Defect reported",
+      "detail": "B-405 · T-406 · Duplicate alert after retry; original delivery owner Dev Shah."
+    },
+    {
+      "id": "544e43a6-0f52-40c3-b646-39f179324f14",
+      "at": "2026-10-13T09:00:00.000Z",
+      "actor": "Maya Rao",
+      "role": "manager",
+      "action": "Cause confirmed",
+      "detail": "B-401 · Original delivery · Reproduced against the signed-off currency conversion acceptance criteria."
+    },
+    {
+      "id": "ace41990-aae2-4d1d-996b-faaaeace075d",
+      "at": "2026-10-12T16:00:00.000Z",
+      "actor": "Leena Das",
+      "role": "team-lead",
+      "action": "Corrective hours approved",
+      "detail": "0.50 hours · B-402 · Linked defect, time note, and review evidence checked."
+    },
+    {
+      "id": "0af49d71-b32a-4b6f-8e4d-698c28a7f877",
+      "at": "2026-10-12T13:00:00.000Z",
+      "actor": "Dev Shah",
+      "role": "employee",
+      "action": "Defect reported",
+      "detail": "B-404 · T-405 · Role update leaves stale access; original delivery owner Mina Patel."
+    },
+    {
+      "id": "362e2d3e-4c8b-4e72-9f85-718d43594564",
+      "at": "2026-10-12T11:00:00.000Z",
+      "actor": "Ravi Menon",
+      "role": "employee",
+      "action": "Defect reported",
+      "detail": "B-403 · T-404 · New tenant tax label; original delivery owner Ravi Menon."
+    },
+    {
+      "id": "8337f20d-3962-4aca-a559-bbc74b967e38",
+      "at": "2026-10-12T09:30:00.000Z",
+      "actor": "Dev Shah",
+      "role": "employee",
+      "action": "Defect reported",
+      "detail": "B-401 · T-401 · Currency rounding drift; original delivery owner Aisha Khan."
+    },
+    {
+      "id": "9e1d4046-5ea9-41db-9cd1-026d93d7fc4c",
+      "at": "2026-10-11T09:30:00.000Z",
+      "actor": "Maya Rao",
+      "role": "manager",
+      "action": "Cause confirmed",
+      "detail": "B-402 · Original delivery · The export boundary case is included in the original delivery acceptance criteria."
+    },
+    {
+      "id": "53c13bf8-e304-4ffe-9cb7-945fdadae95e",
+      "at": "2026-10-10T10:15:00.000Z",
+      "actor": "Aisha Khan",
+      "role": "employee",
+      "action": "Defect reported",
+      "detail": "B-402 · T-403 · Export boundary row omitted; original delivery owner Ravi Menon."
+    }
+  ],
+  "payroll": [],
+  "accounts": [
+    {
+      "id": "acct-employee-emp-aisha",
+      "email": "aisha.khan@example.com",
+      "name": "Aisha Khan",
+      "role": "employee",
+      "employeeId": "emp-aisha",
+      "passwordSalt": "bff81ea5382ca747c3b71db852b22ed1",
+      "passwordHash": "a5f0c8e8b23c6d8ba9121a9cc9dc4d51c708ac4362f9988473b7cf734bc116d09b7ec2a722e8449b7b0ec9c19447c1ce7dcb6a046f2214cd376c01085cbb51e4",
+      "createdAt": "2026-10-17T02:00:00.000Z",
+      "active": true,
+      "status": "approved"
+    },
+    {
+      "id": "acct-employee-emp-ravi",
+      "email": "ravi.menon@example.com",
+      "name": "Ravi Menon",
+      "role": "employee",
+      "employeeId": "emp-ravi",
+      "passwordSalt": "ea4c7c29192bade9065653089ce52fde",
+      "passwordHash": "dbc9f8407d0d48c23205a5d0042bd5577298c8779475af24701d564f6d02f61390868a3cf90684d8dbd68c7a34d6c5e6bbc2fd31411c5fef33bde208c92375e1",
+      "createdAt": "2026-10-17T02:00:00.000Z",
+      "active": true,
+      "status": "approved"
+    },
+    {
+      "id": "acct-employee-emp-mina",
+      "email": "mina.patel@example.com",
+      "name": "Mina Patel",
+      "role": "employee",
+      "employeeId": "emp-mina",
+      "passwordSalt": "6ebe1c68eda94ca288e1af37a81d9361",
+      "passwordHash": "97135f142d84e25bea25ef1ce7cffe26d0d03eedde30eb9befca68be787e9f80f45f2b75e7ea4ecbbff8d40f40a3134b989c7114381a2504dd0e95d4672de334",
+      "createdAt": "2026-10-17T02:00:00.000Z",
+      "active": true,
+      "status": "approved"
+    },
+    {
+      "id": "acct-employee-emp-dev",
+      "email": "dev.shah@example.com",
+      "name": "Dev Shah",
+      "role": "employee",
+      "employeeId": "emp-dev",
+      "passwordSalt": "769f46a3cb67e225515989b007dec377",
+      "passwordHash": "8b6849afa64e0cb7b8c9c33a3aafea5011cce78bfad17af40fd345a2c1000c89e7224f36e184bb7ca33330fb32c3df4d3962050b1a30fa1be13969e902f35409",
+      "createdAt": "2026-10-17T02:00:00.000Z",
+      "active": true,
+      "status": "approved"
+    },
+    {
+      "id": "acct-employee-emp-priya",
+      "email": "priya.nair@example.com",
+      "name": "Priya Nair",
+      "role": "employee",
+      "employeeId": "emp-priya",
+      "passwordSalt": "2333c65e43921abe9aa422373ff0238b",
+      "passwordHash": "c521d95bed137a5297caec160740add5f0800af8f91b292ce48fec82fe1c9cac9ccebd16dbe06bc1330b21107bc8ead798458e2529d30f9bb3f468d3f643901a",
+      "createdAt": "2026-10-17T02:00:00.000Z",
+      "active": true,
+      "status": "approved"
+    },
+    {
+      "id": "acct-team-lead-lead.demo",
+      "email": "lead.demo@example.com",
+      "name": "Leena Das",
+      "role": "team-lead",
+      "employeeId": null,
+      "passwordSalt": "62f2fd57e4e85c2a9e456f60e176d7c0",
+      "passwordHash": "08c8249336b86d2c474564a8370e285439b3fd3cf89b7c00443839f8d588a7aa554bc02eb69b75a736fae58a7a1a85eddfc289d1649fc552813a9899e94f2791",
+      "createdAt": "2026-10-17T02:00:00.000Z",
+      "active": true,
+      "status": "approved"
+    },
+    {
+      "id": "acct-manager-manager.demo",
+      "email": "manager.demo@example.com",
+      "name": "Maya Rao",
+      "role": "manager",
+      "employeeId": null,
+      "passwordSalt": "7153621147e127eaf4e584f8701604d4",
+      "passwordHash": "fcd9ec00acbbc64afbfce105a7d9848602bf358f4e6cef24ceffb5cb614994c703fd6b456a41ff9c48f5db471c3525f875d6494ccf7b24706c227dd9a566b008",
+      "createdAt": "2026-10-17T02:00:00.000Z",
+      "active": true,
+      "status": "approved"
+    },
+    {
+      "id": "acct-finance-finance.demo",
+      "email": "finance.demo@example.com",
+      "name": "Finance Demo",
+      "role": "finance",
+      "employeeId": null,
+      "passwordSalt": "2f0f6860db57f883842db7abc672178d",
+      "passwordHash": "e94fe38a8cb5ea5c763351fd6c21349292e90684867029abab6775d4eb73a1e8b99f978145a20f35ba96f6bd1246d1d8f08da1207419537cc15d48a1945e5fcc",
+      "createdAt": "2026-10-17T02:00:00.000Z",
+      "active": true,
+      "status": "approved"
+    },
+    {
+      "id": "acct-admin-admin.demo",
+      "email": "admin.demo@example.com",
+      "name": "Workspace Administrator",
+      "role": "admin",
+      "employeeId": null,
+      "passwordSalt": "1bedb4321710a811e264cd45c0e5cffc",
+      "passwordHash": "fdf1a7c1dca38e5c023829bf37b9f9ecc6919c29bd3f195144cd9f7c4ceb77600b3f68197c7c992f12154f91061303f8e0533b18cac516040de668c0d4e3c0a7",
+      "createdAt": "2026-10-17T02:00:00.000Z",
+      "active": true,
+      "status": "approved"
+    }
+  ]
+}

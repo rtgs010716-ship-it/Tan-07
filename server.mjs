@@ -8,6 +8,7 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 const publicRoot = path.join(root, 'public');
 const dataRoot = path.join(root, 'data');
 const dbPath = path.join(dataRoot, 'workspace.json');
+const seedPath = path.join(dataRoot, 'demo-seed.json');
 const port = Number(process.env.PORT || 4173);
 const clients = new Set();
 const sessions = new Map();
@@ -74,7 +75,16 @@ async function loadDb() {
     if (!Array.isArray(db.accounts)) { db.accounts = []; await persist(); }
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
-    db = seed();
+    try {
+      const starter = JSON.parse(await readFile(seedPath, 'utf8'));
+      if (!starter || typeof starter !== 'object' || !Number.isFinite(starter.version) || !Array.isArray(starter.employees) || !Array.isArray(starter.tasks) || !Array.isArray(starter.bugs) || !Array.isArray(starter.timeEntries) || !Array.isArray(starter.notices) || !Array.isArray(starter.audit) || !Array.isArray(starter.payroll) || !Array.isArray(starter.accounts)) {
+        throw new Error('The packaged demo seed does not match the expected data format. Repair data/demo-seed.json before restarting.');
+      }
+      db = starter;
+    } catch (seedError) {
+      if (seedError.code !== 'ENOENT') throw seedError;
+      db = seed();
+    }
     await persist();
   }
 }
